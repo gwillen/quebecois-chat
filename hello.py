@@ -65,6 +65,18 @@ def events():
 
 	return Response(generate())
 
+@app.route('/messages', methods=["POST", "OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def messages():
+	typ = request.args.get('type')
+	to = request.args.get('to')
+	subject = request.args.get('subject')
+
+	content = request.form.get('content')
+
+	return json.dumps(client.send_message({"type": typ, "to": to, "subject": subject, "content": content}))
+
 @app.route('/')
 def hello():
 	logging.debug("test1")
