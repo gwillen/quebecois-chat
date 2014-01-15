@@ -41,7 +41,7 @@ def subscribe():
 def register():
 	return json.dumps(client.register(event_types=["message"]))
 
-@app.route('/events')
+@app.route('/events', methods=["GET", "OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
