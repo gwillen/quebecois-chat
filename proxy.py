@@ -100,3 +100,8 @@ def messages():
 	content = request.form.get('content')
 
 	return json.dumps(client.send_message({"type": typ, "to": to, "subject": subject, "content": content}))
+
+@app.route('/public/<filename>')
+def public(filename):
+	logging.debug(filename)
+	return app.send_static_file(filename)
