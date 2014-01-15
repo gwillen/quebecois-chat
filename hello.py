@@ -33,7 +33,7 @@ def add_response_headers(headers={}):
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe_options():
-	pass
+	return ''
 
 @app.route('/subscribe', methods=["GET"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -45,7 +45,7 @@ def subscribe():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def register_options():
-	pass
+	return ''
 
 @app.route('/register', methods=["GET"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -57,7 +57,7 @@ def register():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events_options():
-	pass
+	return ''
 
 @app.route('/events', methods=["GET"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -87,7 +87,7 @@ def events():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def messages_options():
-	pass
+	return ''
 
 @app.route('/messages', methods=["POST"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
