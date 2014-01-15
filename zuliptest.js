@@ -1,4 +1,5 @@
 PROXY = 'http://quebecois.herokuapp.com/';
+BOT_EMAIL = 'quebecois-bot@rotq.net';
 
 QUEBECOIS = (function(window, $, undefined){
 	var queue_id = undefined;
@@ -46,16 +47,34 @@ QUEBECOIS = (function(window, $, undefined){
 		});
     };
 
-    //var send = function(stream, topic, message) {
-	//	$.get
-    //}
+    var send = function(stream, topic, message) {
+		$.post(PROXY + 'messages?type=stream&to=' + stream + '&subject=' + topic,
+			{"content": message},
+			function(data, textstatus, jqxhr) {
+				var result = JSON.parse(data);
+				console.log(result);
+			});
+    }
 
     return {
-		go: go
+		go: go,
+		send: send
     }
 })(this, jQuery);
 
 QUEBECOIS.go('misc', 'bot test 2',
 	function(e) {
 		console.log("GOT EVENT", e);
+		var sender = e.message.sender_full_name;
+		var content = e.message.content;
+		var message = '';
+		if (e.message.sender_email == BOT_EMAIL) {
+			message = content;
+		} else {
+			message = '[' + sender + '] ' + content;
+		}
+
+		var msg_div = $('<div>');
+		msg_div.text(message);
+		$('#messages').append(msg_div);
 	});
