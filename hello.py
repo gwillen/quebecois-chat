@@ -29,6 +29,12 @@ def add_response_headers(headers={}):
         return decorated_function
     return decorator
 
+@app.route('/subscribe', methods=["GET", "OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def subscribe():
+	return json.dumps(client.add_subscriptions([{"name": request.args.get('stream_name')}]))
+
 @app.route('/register', methods=["GET", "OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
@@ -50,6 +56,7 @@ def events():
 				result = json.dumps(client.get_events(
 					queue_id=queue_id,
 					last_event_id=last_event_id))
+				logging.debug('got a response')
 			except Timeout:
 				pass
 			finally:
