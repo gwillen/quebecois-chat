@@ -29,19 +29,37 @@ def add_response_headers(headers={}):
         return decorated_function
     return decorator
 
-@app.route('/subscribe', methods=["GET", "OPTIONS"])
+@app.route('/subscribe', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def subscribe():
+	pass
+
+@app.route('/subscribe', methods=["GET"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
 	return json.dumps(client.add_subscriptions([{"name": request.args.get('stream_name')}]))
 
-@app.route('/register', methods=["GET", "OPTIONS"])
+@app.route('/register', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def register():
+	pass
+
+@app.route('/register', methods=["GET"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def register():
 	return json.dumps(client.register(event_types=["message"]))
 
-@app.route('/events', methods=["GET", "OPTIONS"])
+@app.route('/events', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def events():
+	pass
+
+@app.route('/events', methods=["GET"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
@@ -65,7 +83,13 @@ def events():
 
 	return Response(generate())
 
-@app.route('/messages', methods=["POST", "OPTIONS"])
+@app.route('/messages', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def messages():
+	pass
+
+@app.route('/messages', methods=["POST"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def messages():
