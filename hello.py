@@ -32,7 +32,7 @@ def add_response_headers(headers={}):
 @app.route('/subscribe', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def subscribe():
+def subscribe_options():
 	pass
 
 @app.route('/subscribe', methods=["GET"])
@@ -44,7 +44,7 @@ def subscribe():
 @app.route('/register', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def register():
+def register_options():
 	pass
 
 @app.route('/register', methods=["GET"])
@@ -56,7 +56,7 @@ def register():
 @app.route('/events', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def events():
+def events_options():
 	pass
 
 @app.route('/events', methods=["GET"])
@@ -86,7 +86,7 @@ def events():
 @app.route('/messages', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def messages():
+def messages_options():
 	pass
 
 @app.route('/messages', methods=["POST"])
@@ -100,17 +100,3 @@ def messages():
 	content = request.form.get('content')
 
 	return json.dumps(client.send_message({"type": typ, "to": to, "subject": subject, "content": content}))
-
-@app.route('/')
-def hello():
-	logging.debug("test1")
-
-	gevent.socket.create_connection(('1.1.1.1', 80))
-	logging.debug("test2")
-
-	#client.send_message({
-#		"type": "stream",
-#		"to": "misc",
-#		"subject": "bot_test",
-#		"content": "Hello, Heroku!" })
-	return "Done."
