@@ -1,1 +1,1 @@
-web: gunicorn --debug -k gevent hello:app
+web: gunicorn --debug -k gevent proxy:app
