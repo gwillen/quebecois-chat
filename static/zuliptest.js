@@ -1,5 +1,16 @@
-PROXY = 'http://quebecois.herokuapp.com/';
+//PROXY = 'http://quebecois.herokuapp.com/';
+PROXY = 'http://localhost:5000/';
 BOT_EMAIL = 'quebecois-bot@rotq.net';
+
+parms = {};
+location.
+	search.
+	substr(1).
+	split('&').
+	map(function(x) {
+		var parm = x.split('=');
+		parms[parm[0]] = parm[1];
+	});
 
 QUEBECOIS = (function(window, $, undefined){
 	var queue_id = undefined;
@@ -56,25 +67,35 @@ QUEBECOIS = (function(window, $, undefined){
 			});
     }
 
+	var abuse_mediawiki = function() {
+		var username = $('#pt-userpage').text();
+		var page_tag = $('body').attr('class').split(' ').filter(function(x) { return /^page-/.test(x) })[0];
+		var page = page_tag.split('-')[1];
+		var wikidiv = $('#globalWrapper');
+		wikidiv.css({
+			'position': 'absolute',
+			'top': '250px'
+		});
+		var body = $('body');
+		$('body').prepend($('<div id="chatpane">'));
+		var chatpane = $('#chatpane');
+		chatpane.css({
+			'background-color': 'white',
+			'height': '240px'
+		});
+		chatpane.append($('<iframe src="' + PROXY + 'public/zuliptest.html?v=' + VERSION + '&user=' + username + '&page=' + page + '" id="zulipframe"></iframe>'));
+		var zulipframe = $('#zulipframe');
+		zulipframe.css({
+			'width': '100%',
+			'height': '100%',
+			'border': '0px',
+			'border-bottom': '1px solid black'
+		});
+	};
+
     return {
 		go: go,
-		send: send
+		send: send,
+		abuse_mediawiki: abuse_mediawiki
     }
 })(this, jQuery);
-
-QUEBECOIS.go('misc', 'bot test 2',
-	function(e) {
-		console.log("GOT EVENT", e);
-		var sender = e.message.sender_full_name;
-		var content = e.message.content;
-		var message = '';
-		if (e.message.sender_email == BOT_EMAIL) {
-			message = content;
-		} else {
-			message = '[' + sender + '] ' + content;
-		}
-
-		var msg_div = $('<div>');
-		msg_div.text(message);
-		$('#messages').append(msg_div);
-	});
