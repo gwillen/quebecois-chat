@@ -1,5 +1,6 @@
 /////
 //LOCALMODE = 'localhost.rotq.net:5000';
+LOCALMODE = false;
 /////
 
 PROXY = 'http://scripts.x.rotq.net/';
