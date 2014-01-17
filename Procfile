@@ -1,1 +1,1 @@
-web: gunicorn --debug -k gevent proxy:app
+web: gunicorn --debug -k gevent -w 4 proxy:app
