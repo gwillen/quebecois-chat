@@ -1,6 +1,8 @@
 //PROXY = 'http://quebecois.herokuapp.com/';
 PROXY = 'http://localhost:5000/';
+LONGPOLL_DOMAIN = 'x.rotq.net';
 BOT_EMAIL = 'quebecois-bot@rotq.net';
+BOT_NAME = "The Rage of the Quebecois bot"
 
 parms = {};
 location.
@@ -16,6 +18,23 @@ QUEBECOIS = (function(window, $, undefined){
 	var queue_id = undefined;
 	var last_event_id = undefined;
 
+	var subscribe = function(stream, k) {
+		$.get(PROXY + 'subscribe?stream_name=' + stream, '', k);
+	};
+
+	var create_stream = function(stream, k) {
+		// I'm as puzzled as you are.
+		subscribe(stream, function(data, textstatus, jqxhr) {
+			var result = JSON.parse(data);
+			console.log("CREATE STREAM", stream, result);
+			if (result.subscribed[BOT_EMAIL]) {
+				// This is a new subscription; since our intent was to create the stream, presume that we did so, and announce it.
+				send('zulip', 'Streams', BOT_NAME + ' just created a new stream `' + stream + '`. To join, visit your [Streams page](https://zulip.com/#subscriptions).');
+			}
+			k();
+		});
+	};
+
 	var register = function(k) {
 		$.get(PROXY + 'register', '', function(data, textstatus, jqxhr) {
 			var result = JSON.parse(data);
@@ -26,8 +45,22 @@ QUEBECOIS = (function(window, $, undefined){
 		});
 	};
 
+	var make_id = function(n)
+	{
+		var text = "";
+		var possible = "abcdefghijklmnopqrstuvwxyz";
+
+		for (var i = 0; i < n; i++) {
+			text += possible.charAt(Math.floor(Math.random() * possible.length));
+		}
+
+		return text;
+	}
+
 	var get_events = function(k) {
-		$.get(PROXY + 'events?queue_id=' + queue_id + '&last_event_id=' + last_event_id, '', function(data, textstatus, jqxhr) {
+		var random_token = make_id(7);
+		var domain = 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
+		$.get(domain + 'events?queue_id=' + queue_id + '&last_event_id=' + last_event_id, '', function(data, textstatus, jqxhr) {
 			var result = JSON.parse(data);
 			console.log(result);
 			events = result['events'];
@@ -48,9 +81,9 @@ QUEBECOIS = (function(window, $, undefined){
 			each_event(function(e) {
 				if (e.message.type != 'stream') {
 					return;
-				} else if (e.message.display_recipient != stream) {
+				} else if (stream != '*' && e.message.display_recipient != stream) {
 					return;
-				} else if (e.message.subject != topic) {
+				} else if (topic != '*' && e.message.subject != topic) {
 					return;
 				}
 				f(e);
@@ -58,12 +91,18 @@ QUEBECOIS = (function(window, $, undefined){
 		});
     };
 
-    var send = function(stream, topic, message) {
+    var send = function(stream, topic, message, autovivify) {
 		$.post(PROXY + 'messages?type=stream&to=' + stream + '&subject=' + topic,
 			{"content": message},
 			function(data, textstatus, jqxhr) {
 				var result = JSON.parse(data);
 				console.log(result);
+				if (autovivify && (result.msg == 'Stream does not exist')) {
+					create_stream(stream, function() {
+						// Never autovivify again, to avoid recursing in weird cases.
+						send(stream, topic, message);
+					});
+				}
 			});
     }
 
