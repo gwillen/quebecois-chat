@@ -147,7 +147,8 @@ QUEBECOIS = (function(window, $, undefined){
 		var wikidiv = $('#globalWrapper');
 		wikidiv.css({
 			'position': 'absolute',
-			'top': '250px'
+			'top': CHATPANE_HEIGHT,
+			'margin-top': '10px'
 		});
 		var body = $('body');
 		$('body').prepend($('<div id="chatpane">'));
@@ -180,10 +181,11 @@ QUEBECOIS = (function(window, $, undefined){
 		if (flag) {
 			$('#messages').css({'display': 'none'});
 			window.parent.$('#chatpane').css({'height': CHAT_EXTRAS_HEIGHT});
-
+			window.parent.$('#globalWrapper').css({'top': CHAT_EXTRAS_HEIGHT});
 		} else {
 			$('#messages').css({'display': 'block'});
 			window.parent.$('#chatpane').css({'height': CHATPANE_HEIGHT});
+			window.parent.$('#globalWrapper').css({'top': CHATPANE_HEIGHT});
 		}
 	};
 
