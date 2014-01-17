@@ -120,7 +120,9 @@ QUEBECOIS = (function(window, $, undefined){
 		var chatpane = $('#chatpane');
 		chatpane.css({
 			'background-color': 'white',
-			'height': '240px'
+			'height': '240px',
+			'z-index': 1000,
+			'width': '100%'
 		});
 		chatpane.append($('<iframe src="' + PROXY + 'public/zuliptest.html?v=' + VERSION + '&user=' + username + '&page=' + page + '" id="zulipframe"></iframe>'));
 		var zulipframe = $('#zulipframe');
@@ -132,9 +134,17 @@ QUEBECOIS = (function(window, $, undefined){
 		});
 	};
 
+	var fixed_chatpane = function(flag) {
+		if (flag) {
+			$('#chatpane').css({'position': 'fixed'});
+		} else {
+			$('#chatpane').css({'position': 'absolute'});
+		}
+	};
     return {
 		go: go,
 		send: send,
-		abuse_mediawiki: abuse_mediawiki
+		abuse_mediawiki: abuse_mediawiki,
+		fixed_chatpane: fixed_chatpane
     }
 })(this, jQuery);

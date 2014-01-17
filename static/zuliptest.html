@@ -2,8 +2,17 @@
 
 <head>
 	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js"></script>
-	<script type="text/javascript" src="zuliptest.js"></script>
 	<script type="text/javascript">
+		parms = {};
+		location.
+			search.
+			substr(1).
+			split('&').
+			map(function(x) {
+				var parm = x.split('=');
+				parms[parm[0]] = parm[1];
+			});
+		document.write('<script type="text/javascript" src="zuliptest.js?v=' + parms['v'] + '""><' + '/script>');
 		function transform_title(title) {
 			var prefix = title.substr(0, 2);
 			if (!/^R\d/.test(prefix)) {
@@ -33,6 +42,7 @@
 		<input type='text' name='username' id='username' placeholder='username'>
 		<div id='messages' style='width: 100%; overflow: auto'></div>
 		<input type='text' name='message_out' id='message_out'>
+		<input type='checkbox' name='fixed' id='fixed_checkbox'>
 		<input type='submit' name='submit' value='Send'>
 	</form>
 	<script type="text/javascript">
@@ -74,6 +84,10 @@
 		}
 
 		$('#messages').css({'height': '170px'});
+
+		$('#fixed_checkbox').click(function() {
+			QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);
+		});
 
 		QUEBECOIS.go(current_stream, '*', function(e) {
 			console.log("GOT EVENT", e);

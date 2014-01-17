@@ -1,5 +1,5 @@
 // Assume the presence of jQuery, because who doesn't have jQuery
-VERSION = 17;
+VERSION = 19;
 PROXY = 'http://quebecois.herokuapp.com/';
 //PROXY = 'http://localhost:5000/';
 
