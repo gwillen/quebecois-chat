@@ -1,5 +1,5 @@
 // Assume the presence of jQuery, because who doesn't have jQuery
-VERSION = 47;
+VERSION = 50;
 PROXY = 'http://scripts.x.rotq.net/';
 //PROXY = 'http://localhost.rotq.net:5000/';
 

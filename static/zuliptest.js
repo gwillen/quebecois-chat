@@ -11,6 +11,7 @@ if (LOCALMODE) {
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
 CHATPANE_HEIGHT = '240px';
+CHAT_EXTRAS_HEIGHT = '47px';
 //CHATPANE_HEIGHT = '20px';
 DEFAULT_STREAM = 'wiki';
 ERROR_BACKOFF = 30 * 1000; // ms
@@ -175,10 +176,22 @@ QUEBECOIS = (function(window, $, undefined){
 		}
 	};
 
+	var hide_chatpane = function(flag) {
+		if (flag) {
+			$('#messages').css({'display': 'none'});
+			window.parent.$('#chatpane').css({'height': CHAT_EXTRAS_HEIGHT});
+
+		} else {
+			$('#messages').css({'display': 'block'});
+			window.parent.$('#chatpane').css({'height': CHATPANE_HEIGHT});
+		}
+	};
+
     return {
 		go: go,
 		send: send,
 		abuse_mediawiki: abuse_mediawiki,
-		fixed_chatpane: fixed_chatpane
+		fixed_chatpane: fixed_chatpane,
+		hide_chatpane: hide_chatpane
     }
 })(this, jQuery);
