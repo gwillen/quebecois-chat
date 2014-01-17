@@ -118,7 +118,7 @@
 			QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);
 		});
 
-		QUEBECOIS.go(current_stream, '*', function(e) {
+		QUEBECOIS.no_go(current_stream, '*', function(e) {
 			console.log("GOT EVENT", e);
 			var sender = e.message.sender_full_name;
 			var content = e.message.content;
