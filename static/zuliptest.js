@@ -108,6 +108,10 @@ QUEBECOIS = (function(window, $, undefined){
     var go = function(stream, topic, f) {
 		register(function() {
 			each_event(function(e) {
+				if (!e.message) {
+					console.log("EVENT SANS MESSAGE", e);
+					return;
+				}
 				if (e.message.type != 'stream') {
 					return;
 				} else if (stream != '*' && e.message.display_recipient != stream) {
