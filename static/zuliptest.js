@@ -3,7 +3,8 @@ PROXY = 'http://scripts.x.rotq.net/';
 LONGPOLL_DOMAIN = 'x.rotq.net';
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
-CHATPANE_HEIGHT = '240px';
+//CHATPANE_HEIGHT = '240px';
+CHATPANE_HEIGHT = '20px';
 DEFAULT_STREAM = 'wiki';
 
 document.domain = 'rotq.net';

@@ -45,9 +45,9 @@
 
 <body style='margin: 0px'>
 	<form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px'>
-		<div id='messages' style='width: 100%; overflow: auto'></div>
+		<div id='messages' style='width: 100%; overflow: auto; display: none'></div>
 		<div id='streamlink'>&nbsp; View chat in Zulip: </div>
-		<table width='100%'><tr>
+		<table width='100%' style='display:none'><tr>
 			<td style="white-space: nowrap;">
 				<input type='text' name='username' id='username' placeholder='username'>
 				<input type='text' name='topic' id='topic' placeholder='topic'>
