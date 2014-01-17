@@ -1,5 +1,5 @@
-//PROXY = 'http://quebecois.herokuapp.com/';
-PROXY = 'http://localhost:5000/';
+PROXY = 'http://quebecois.herokuapp.com/';
+//PROXY = 'http://localhost:5000/';
 LONGPOLL_DOMAIN = 'x.rotq.net';
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot"
