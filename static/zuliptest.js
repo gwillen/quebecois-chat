@@ -68,6 +68,9 @@ QUEBECOIS = (function(window, $, undefined){
 			var result = JSON.parse(data);
 			console.log(result);
 			events = result['events'];
+			if (events == undefined) {
+				k([]);
+			}
 			last_event_id = events[events.length - 1]['id'];
 			k(events);
 		});
