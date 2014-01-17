@@ -13,6 +13,7 @@
 				parms[parm[0]] = parm[1];
 			});
 		document.write('<script type="text/javascript" src="zuliptest.js?v=' + parms['v'] + '""><' + '/script>');
+
 		function transform_title(title) {
 			var prefix = title.substr(0, 2);
 			if (!/^R\d/.test(prefix)) {
@@ -20,6 +21,10 @@
 			} else {
 				return 'Я' + title.substr(1);
 			}
+		}
+
+		function stream_url(title) {
+			return 'https://zulip.com/#narrow/stream/' + transform_title(title);
 		}
 
 		function send_message() {
@@ -41,6 +46,7 @@
 <body style='margin: 0px'>
 	<form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px'>
 		<div id='messages' style='width: 100%; overflow: auto'></div>
+		<div id='streamlink'>&nbsp; View chat in Zulip: </div>
 		<table width='100%'><tr>
 			<td style="white-space: nowrap;">
 				<input type='text' name='username' id='username' placeholder='username'>
@@ -102,7 +108,11 @@
 			topic_box.val(current_topic);
 		}
 
-		$('#messages').css({'height': CHATDIV_HEIGHT});
+		var u = stream_url(current_page);
+		$('#streamlink').append($('<a target="_blank" href="' + u + '">' + u + '</a>'));
+
+		// XXX: slightly ugh.
+		$('#messages').css({'height': '' + ($('body').height() - $('table').height() - $('#streamlink').height()) + 'px'});
 
 		$('#fixed_checkbox').click(function() {
 			QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);

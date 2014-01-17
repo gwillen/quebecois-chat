@@ -4,7 +4,6 @@ LONGPOLL_DOMAIN = 'x.rotq.net';
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
 CHATPANE_HEIGHT = '240px';
-CHATDIV_HEIGHT = '211px';
 
 document.domain = 'rotq.net';
 
@@ -145,6 +144,7 @@ QUEBECOIS = (function(window, $, undefined){
 			window.parent.$('#chatpane').css({'position': 'absolute'});
 		}
 	};
+
     return {
 		go: go,
 		send: send,
