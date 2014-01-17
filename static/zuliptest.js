@@ -1,12 +1,21 @@
+/////
+//LOCALMODE = 'localhost.rotq.net:5000';
+/////
+
 PROXY = 'http://scripts.x.rotq.net/';
-//PROXY = 'http://localhost:5000/';
 LONGPOLL_DOMAIN = 'x.rotq.net';
+if (LOCALMODE) {
+	PROXY = 'http://localhost.rotq.net:5000/';
+}
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
 //CHATPANE_HEIGHT = '240px';
 CHATPANE_HEIGHT = '20px';
 DEFAULT_STREAM = 'wiki';
 ERROR_BACKOFF = 30 * 1000; // ms
+
+MAGIC_KEY = 'fhqwhgads';
+
 
 document.domain = 'rotq.net';
 
@@ -25,7 +34,7 @@ QUEBECOIS = (function(window, $, undefined){
 	var last_event_id = undefined;
 
 	var subscribe = function(stream, k) {
-		$.get(PROXY + 'subscribe?stream_name=' + stream, '', k);
+		$.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&stream_name=' + stream, '', k);
 	};
 
 	var create_stream = function(stream, k) {
@@ -42,7 +51,7 @@ QUEBECOIS = (function(window, $, undefined){
 	};
 
 	var register = function(k) {
-		$.get(PROXY + 'register', '', function(data, textstatus, jqxhr) {
+		$.get(PROXY + 'register?key=' + MAGIC_KEY, '', function(data, textstatus, jqxhr) {
 			var result = JSON.parse(data);
 			console.log(result);
 			queue_id = result['queue_id'];
@@ -66,7 +75,10 @@ QUEBECOIS = (function(window, $, undefined){
 	var get_events = function(k) {
 		var random_token = make_id(7);
 		var domain = 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
-		$.get(domain + 'events?queue_id=' + queue_id + '&last_event_id=' + last_event_id, '', function(data, textstatus, jqxhr) {
+		if (LOCALMODE) {
+			var domain = 'http://' + LOCALMODE + '/';
+		}
+		$.get(domain + 'events?key=' + MAGIC_KEY + '&queue_id=' + queue_id + '&last_event_id=' + last_event_id, '', function(data, textstatus, jqxhr) {
 			var result = JSON.parse(data);
 			console.log(result);
 			if (result.result == 'error') {
@@ -108,7 +120,7 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var send = function(stream, topic, message, autovivify) {
-		$.post(PROXY + 'messages?type=stream&to=' + stream + '&subject=' + topic,
+		$.post(PROXY + 'messages?key=' + MAGIC_KEY + '&type=stream&to=' + stream + '&subject=' + topic,
 			{"content": message},
 			function(data, textstatus, jqxhr) {
 				var result = JSON.parse(data);

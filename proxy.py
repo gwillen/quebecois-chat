@@ -8,6 +8,8 @@ from gevent import monkey, Timeout
 from functools import wraps
 from flask import Flask, request, make_response, Response
 
+MAGIC_KEY = 'fhqwhgads'
+
 monkey.patch_socket()
 
 logging.basicConfig(filename='error.log',level=logging.DEBUG)
@@ -29,6 +31,18 @@ def add_response_headers(headers={}):
         return decorated_function
     return decorator
 
+def require_key():
+	"""This decorator requires the magic key to access the route"""
+	def decorator(f):
+		@wraps(f)
+		def decorated_function(*args, **kwargs):
+			if request.args.get('key') != MAGIC_KEY:
+				return '{"result": "error", "msg": "bad quebecois key"}'
+			else:
+				return f(*args, **kwargs)
+		return decorated_function
+	return decorator
+
 @app.route('/subscribe', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
@@ -36,6 +50,7 @@ def subscribe_options():
 	return ''
 
 @app.route('/subscribe', methods=["GET"])
+@require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
@@ -48,6 +63,7 @@ def register_options():
 	return ''
 
 @app.route('/register', methods=["GET"])
+@require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def register():
@@ -60,6 +76,7 @@ def events_options():
 	return ''
 
 @app.route('/events', methods=["GET"])
+@require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
@@ -90,6 +107,7 @@ def messages_options():
 	return ''
 
 @app.route('/messages', methods=["POST"])
+@require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def messages():
