@@ -6,6 +6,7 @@ BOT_NAME = "The Rage of the Quebecois bot";
 //CHATPANE_HEIGHT = '240px';
 CHATPANE_HEIGHT = '20px';
 DEFAULT_STREAM = 'wiki';
+ERROR_BACKOFF = 30 * 1000; // ms
 
 document.domain = 'rotq.net';
 
@@ -68,6 +69,13 @@ QUEBECOIS = (function(window, $, undefined){
 		$.get(domain + 'events?queue_id=' + queue_id + '&last_event_id=' + last_event_id, '', function(data, textstatus, jqxhr) {
 			var result = JSON.parse(data);
 			console.log(result);
+			if (result.result == 'error') {
+				console.log("ERROR, BACKING OFF", result);
+				setTimeout(function() {
+					k([]);
+				}, ERROR_BACKOFF);
+				return;
+			}
 			events = result['events'];
 			if (events == undefined) {
 				k([]);
