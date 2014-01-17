@@ -14,7 +14,7 @@ logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
-client = zulip.Client(email="quebecois-bot@rotq.net", api_key="RBBq0ZjXLcfOAYaenBoe5veFDDmhT9ES")
+client = zulip.Client(email="quebecois-bot@rotq.net", api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
 
 def add_response_headers(headers={}):
     """This decorator adds the headers passed in to the response"""
