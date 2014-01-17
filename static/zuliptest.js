@@ -117,7 +117,7 @@ QUEBECOIS = (function(window, $, undefined){
 	var abuse_mediawiki = function() {
 		var username = $('#pt-userpage').text();
 		var page_tag = $('body').attr('class').split(' ').filter(function(x) { return /^page-/.test(x) })[0];
-		var page = page_tag.split('-')[1];
+		var page = page_tag.split('-', 2)[1];
 		var wikidiv = $('#globalWrapper');
 		wikidiv.css({
 			'position': 'absolute',
