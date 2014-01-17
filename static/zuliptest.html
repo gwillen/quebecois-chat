@@ -25,6 +25,7 @@
 		function send_message() {
 			var msg_box = $('#message_out');
 			var username = username_box.val();
+			current_topic = topic_box.val();
 			var message = '';
 			if (username) {
 				message += '<' + username + '> ';
@@ -37,13 +38,23 @@
 	</script>
 </head>
 
-<body>
-	<form action='#' onsubmit='send_message(); return false;'>
-		<input type='text' name='username' id='username' placeholder='username'>
+<body style='margin: 0px'>
+	<form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px'>
 		<div id='messages' style='width: 100%; overflow: auto'></div>
-		<input type='text' name='message_out' id='message_out'>
-		<input type='checkbox' name='fixed' id='fixed_checkbox'>
-		<input type='submit' name='submit' value='Send'>
+		<table width='100%'><tr>
+			<td style="white-space: nowrap;">
+				<input type='text' name='username' id='username' placeholder='username'>
+				<input type='text' name='topic' id='topic' placeholder='topic'>
+			</td>
+			<td width='99%'>
+				<input type='text' name='message_out' id='message_out' placeholder='message' style='width: 100%'>
+			</td>
+			<td style="white-space: nowrap;">
+				<input type='submit' name='submit' value='Send'>
+				<input type='checkbox' name='fixed' id='fixed_checkbox'>
+				<label for='fixed_checkbox'>Fixed chatpane</label>
+			</td>
+		</tr></table>
 	</form>
 	<script type="text/javascript">
 		var formatTime = function(unixTimestamp) {
@@ -69,21 +80,29 @@
 		if (parms['user']) {
 			username_box.val(parms['user']);
 		}
+		var topic_box = $('#topic');
+		if (parms['topic']) {
+			topic_box.val(parms['topic']);
+		} else {
+			topic_box.val(parms['wikichat']);
+		}
+
 		if (parms['page']) {
 			current_page = parms['page'];
 		}
 
 		current_stream = 'puzzles';
-		current_topic = 'wikichat';
+		current_topic = topic_box.val();
 
 		var puzzle_stream = transform_title(current_page);
 		if (puzzle_stream) {
 			current_stream = puzzle_stream;
 		} else {
 			current_topic = current_page;
+			topic_box.val(current_topic);
 		}
 
-		$('#messages').css({'height': '170px'});
+		$('#messages').css({'height': CHATDIV_HEIGHT});
 
 		$('#fixed_checkbox').click(function() {
 			QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);

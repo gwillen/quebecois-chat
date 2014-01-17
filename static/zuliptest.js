@@ -2,7 +2,9 @@ PROXY = 'http://scripts.x.rotq.net/';
 //PROXY = 'http://localhost:5000/';
 LONGPOLL_DOMAIN = 'x.rotq.net';
 BOT_EMAIL = 'quebecois-bot@rotq.net';
-BOT_NAME = "The Rage of the Quebecois bot"
+BOT_NAME = "The Rage of the Quebecois bot";
+CHATPANE_HEIGHT = '240px';
+CHATDIV_HEIGHT = '211px';
 
 document.domain = 'rotq.net';
 
@@ -122,7 +124,7 @@ QUEBECOIS = (function(window, $, undefined){
 		var chatpane = $('#chatpane');
 		chatpane.css({
 			'background-color': 'white',
-			'height': '240px',
+			'height': CHATPANE_HEIGHT,
 			'z-index': 1000,
 			'width': '100%'
 		});
