@@ -10,8 +10,8 @@ if (LOCALMODE) {
 }
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
-//CHATPANE_HEIGHT = '240px';
-CHATPANE_HEIGHT = '20px';
+CHATPANE_HEIGHT = '240px';
+//CHATPANE_HEIGHT = '20px';
 DEFAULT_STREAM = 'wiki';
 ERROR_BACKOFF = 30 * 1000; // ms
 

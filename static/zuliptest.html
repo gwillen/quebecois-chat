@@ -45,9 +45,9 @@
 
 <body style='margin: 0px'>
 	<form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px'>
-		<div id='messages' style='width: 100%; overflow: auto; display: none'></div>
+		<div id='messages' style='width: 100%; overflow: auto'></div>
 		<div id='streamlink'>&nbsp; View chat in Zulip: </div>
-		<table width='100%' style='display:none'><tr>
+		<table width='100%'><tr>
 			<td style="white-space: nowrap;">
 				<input type='text' name='username' id='username' placeholder='username'>
 				<input type='text' name='topic' id='topic' placeholder='topic'>
@@ -59,6 +59,8 @@
 				<input type='submit' name='submit' value='Send'>
 				<input type='checkbox' name='fixed' id='fixed_checkbox'>
 				<label for='fixed_checkbox'>Fixed chatpane</label>
+				<input type='checkbox' name='hide' id='hide_checkbox'>
+				<label for='hide_checkbox'>Hide chat</label>
 			</td>
 		</tr></table>
 	</form>
@@ -116,6 +118,10 @@
 
 		$('#fixed_checkbox').click(function() {
 			QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);
+		});
+
+		$('#hide_checkbox').click(function() {
+			QUEBECOIS.fixed_chatpane($('#hide_checkbox')[0].checked);
 		});
 
 		QUEBECOIS.go(current_stream, '*', function(e) {
