@@ -138,9 +138,9 @@ QUEBECOIS = (function(window, $, undefined){
 
 	var fixed_chatpane = function(flag) {
 		if (flag) {
-			$('#chatpane').css({'position': 'fixed'});
+			window.parent.$('#chatpane').css({'position': 'fixed'});
 		} else {
-			$('#chatpane').css({'position': 'absolute'});
+			window.parent.$('#chatpane').css({'position': 'absolute'});
 		}
 	};
     return {
