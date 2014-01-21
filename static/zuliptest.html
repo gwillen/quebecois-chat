@@ -24,7 +24,12 @@
 		}
 
 		function stream_url(title) {
-			return 'https://zulip.com/#narrow/stream/' + transform_title(title);
+			var stream_title = transform_title(title);
+			if (stream_title) {
+				return 'https://zulip.com/#narrow/stream/' + stream_title;
+			} else {
+				return 'https://zulip.com/#narrow/stream/wiki/topic/title';
+			}
 		}
 
 		function send_message() {
@@ -101,13 +106,16 @@
 
 		current_stream = DEFAULT_STREAM;
 		current_topic = topic_box.val();
+		subscribe_topic = '*';
 
 		var puzzle_stream = transform_title(current_page);
 		if (puzzle_stream) {
 			current_stream = puzzle_stream;
 		} else {
 			current_topic = current_page;
+			subscribe_topic = current_page;
 			topic_box.val(current_topic);
+			topic_box
 		}
 
 		var u = stream_url(current_page);
@@ -124,7 +132,7 @@
 			QUEBECOIS.hide_chatpane($('#hide_checkbox')[0].checked);
 		});
 
-		QUEBECOIS.go(current_stream, '*', function(e) {
+		QUEBECOIS.go(current_stream, subscribe_topic, function(e) {
 			console.log("GOT EVENT", e);
 			var sender = e.message.sender_full_name;
 			var content = e.message.content;
