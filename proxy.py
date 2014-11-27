@@ -4,11 +4,25 @@ import os
 import zulip
 import json
 import gevent
+import pymongo
+
 from gevent import monkey, Timeout
 from functools import wraps
 from flask import Flask, request, make_response, Response
 
 MAGIC_KEY = 'fhqwhgads'
+MONGO_URL = os.environ.get('MONGOHQ_URL')
+
+if MONGO_URL:
+    # Get a connection
+    conn = pymongo.Connection(MONGO_URL)
+    
+    # Get the database
+    db = conn[urlparse(MONGO_URL).path[1:]]
+else:
+    # Not on an app with the MongoHQ add-on, do some localhost action
+    conn = pymongo.Connection('localhost', 27017)
+    db = conn['someapps-db']
 
 monkey.patch_socket()
 
@@ -42,6 +56,20 @@ def require_key():
 				return f(*args, **kwargs)
 		return decorated_function
 	return decorator
+
+@app.route('/asdf', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def asdf_options():
+    return ''
+
+@app.route('/asdf', methods=["GET"])
+@require_key()
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def asdf():
+    db.test_collection.insert({"testdoc":"totaltest"})
+    return json.dumps(db.test_collection.find())
 
 @app.route('/subscribe', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
