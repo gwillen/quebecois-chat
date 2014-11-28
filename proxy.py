@@ -12,9 +12,13 @@ from functools import wraps
 from urlparse import urlparse
 from flask import Flask, request, make_response, Response
 
+# XXX
+logging.basicConfig(filename='quebecois.proxy.log', level=logging.DEBUG)
+
 MAGIC_KEY = 'fhqwhgads'
 MONGO_URL = os.environ.get('MONGOHQ_URL')
-QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_URL')
+TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
+RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
 QUEUE_EXCHANGE = 'test'
 
 if MONGO_URL:
@@ -25,14 +29,20 @@ else:
     mongo_conn = pymongo.Connection('localhost', 27017)
     db = mongo_conn['someapps-db']
 
-if QUEUE_URL:
-    queue_conn = pika.BlockingConnection(pika.URLParameters(QUEUE_URL))
+if TX_QUEUE_URL and RX_QUEUE_URL:
+    send_conn = pika.BlockingConnection(pika.URLParameters(TX_QUEUE_URL))
+    recv_conn = pika.BlockingConnection(pika.URLParameters(RX_QUEUE_URL))
 else:
-    queue_conn = pika.BlockingConnection(pika.ConnectionParameters(
+    send_conn = pika.BlockingConnection(pika.ConnectionParameters(
+        host='localhost'))
+    recv_conn = pika.BlockingConnection(pika.ConnectionParameters(
         host='localhost'))
 
-queue_channel = queue_conn.channel()
-queue_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic')
+send_channel = send_conn.channel()
+send_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic')
+
+recv_channel = recv_conn.channel()
+recv_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic')
 
 monkey.patch_socket()
 
@@ -57,16 +67,16 @@ def add_response_headers(headers={}):
     return decorator
 
 def require_key():
-	"""This decorator requires the magic key to access the route"""
-	def decorator(f):
-		@wraps(f)
-		def decorated_function(*args, **kwargs):
-			if request.args.get('key') != MAGIC_KEY:
-				return '{"result": "error", "msg": "bad quebecois key"}'
-			else:
-				return f(*args, **kwargs)
-		return decorated_function
-	return decorator
+    """This decorator requires the magic key to access the route"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if request.args.get('key') != MAGIC_KEY:
+                return '{"result": "error", "msg": "bad quebecois key"}'
+            else:
+                return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 @app.route('/asdf', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -87,64 +97,81 @@ def asdf():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe_options():
-	return ''
+    return ''
 
 @app.route('/subscribe', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
-	return json.dumps(client.add_subscriptions([{"name": request.args.get('stream_name')}]))
+    return json.dumps(client.add_subscriptions([{"name": request.args.get('stream_name')}]))
 
 @app.route('/register', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def register_options():
-	return ''
+    return ''
 
 @app.route('/register', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def register():
-	return json.dumps(client.register(event_types=["message"]))
+    return json.dumps(client.register(event_types=["message"]))
 
 @app.route('/events', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events_options():
-	return ''
+    return ''
 
 @app.route('/events', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
-	queue_id = request.args.get('queue_id')
-	last_event_id = request.args.get('last_event_id')
-	def generate():
-		result = None
-		while result is None:
-			try:
-				timeout = Timeout(25)
-				timeout.start()
-				result = json.dumps(client.get_events(
-					queue_id=queue_id,
-					last_event_id=last_event_id))
-				logging.debug('got a response')
-			except Timeout:
-				pass
-			finally:
-				timeout.cancel()
-			yield result or ' '
+    topic = request.args.get('topic')
+    #last_event_id = request.args.get('last_event_id')
+    # The same client has to supply the same handle every time. The first time it will be created;
+    #   subsequently it will be reused.  Right now it's going to be leaked if you stop using it.
+    channel_token = request.args.get('channel_token')
 
-	return Response(generate())
+    queue_name = "channel_token_" + channel_token
+    recv_queue = recv_channel.queue_declare(queue=queue_name)
+    recv_channel.queue_bind(exchange=QUEUE_EXCHANGE,
+        queue=queue_name,
+        routing_key=topic)
+
+    print "events"
+    def generate():
+        print "generate"
+        body = None
+        while body is None:
+            print "body is none"
+            try:
+                timeout = Timeout(25)
+                timeout.start()
+                print "waiting to receive consume"
+                (method_frame, properties, body) = next(recv_channel.consume(queue_name, no_ack=True))
+                print "received consume"
+                print "asdfasdfasdfasdf\n"
+                print method_frame
+                print properties
+                print body
+                print 'woeitsdklfjsfs\n'
+            except Timeout:
+                pass
+            finally:
+                timeout.cancel()
+            yield body or ' '
+
+    return Response(generate())
 
 @app.route('/send', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def send_options():
-	return ''
+    return ''
 
 @app.route('/send', methods=["GET"])
 @require_key()
@@ -156,8 +183,8 @@ def send():
     #content = request.form.get('content')
     content = request.args.get('content')
 
-    queue_channel.basic_publish(exchange=QUEUE_EXCHANGE,
-        routing_key='foo.bar',
+    send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
+        routing_key=target,
         body=content)
 
     x = db.channels.update(
@@ -169,8 +196,8 @@ def send():
 
 @app.route('/public/<filename>')
 def public(filename):
-	logging.debug(filename)
-	return app.send_static_file(filename)
+    logging.debug(filename)
+    return app.send_static_file(filename)
 
 # If we're run directly and not through gunicorn
 if __name__ == '__main__':
