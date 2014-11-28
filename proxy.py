@@ -5,24 +5,34 @@ import zulip
 import json
 import gevent
 import pymongo
+import pika
 
 from gevent import monkey, Timeout
 from functools import wraps
+from urlparse import urlparse
 from flask import Flask, request, make_response, Response
 
 MAGIC_KEY = 'fhqwhgads'
 MONGO_URL = os.environ.get('MONGOHQ_URL')
+QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_URL')
+QUEUE_EXCHANGE = 'test'
 
 if MONGO_URL:
-    # Get a connection
-    conn = pymongo.Connection(MONGO_URL)
-    
-    # Get the database
-    db = conn[urlparse(MONGO_URL).path[1:]]
+    mongo_conn = pymongo.Connection(MONGO_URL)
+    db = mongo_conn[urlparse(MONGO_URL).path[1:]]
 else:
     # Not on an app with the MongoHQ add-on, do some localhost action
-    conn = pymongo.Connection('localhost', 27017)
-    db = conn['someapps-db']
+    mongo_conn = pymongo.Connection('localhost', 27017)
+    db = mongo_conn['someapps-db']
+
+if QUEUE_URL:
+    queue_conn = pika.BlockingConnection(pika.URLParameters(QUEUE_URL))
+else:
+    queue_conn = pika.BlockingConnection(pika.ConnectionParameters(
+        host='localhost'))
+
+queue_channel = queue_conn.channel()
+queue_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic')
 
 monkey.patch_socket()
 
@@ -30,7 +40,8 @@ logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
-client = zulip.Client(email="quebecois-bot@rotq.net", api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
+client = zulip.Client(email="quebecois-bot@rotq.net",
+    api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
 
 def add_response_headers(headers={}):
     """This decorator adds the headers passed in to the response"""
@@ -68,8 +79,9 @@ def asdf_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def asdf():
-    db.test_collection.insert({"testdoc":"totaltest"})
-    return json.dumps(db.test_collection.find())
+    #db.test_collection.insert({"testdoc":[123, 456, {"789": "hiyooo"}]})
+    db.test_collection.update({"testdoc":"totaltest"}, {"$push": {"values": str(time.time())}})
+    return json.dumps(str(db.test_collection.find()))
 
 @app.route('/subscribe', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -128,26 +140,39 @@ def events():
 
 	return Response(generate())
 
-@app.route('/messages', methods=["OPTIONS"])
+@app.route('/send', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def messages_options():
+def send_options():
 	return ''
 
-@app.route('/messages', methods=["POST"])
+@app.route('/send', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def messages():
-	typ = request.args.get('type')
-	to = request.args.get('to')
-	subject = request.args.get('subject')
+def send():
+    target = request.args.get('target')
+    #subject = request.args.get('subject')
+    #content = request.form.get('content')
+    content = request.args.get('content')
 
-	content = request.form.get('content')
+    queue_channel.basic_publish(exchange=QUEUE_EXCHANGE,
+        routing_key='foo.bar',
+        body=content)
 
-	return json.dumps(client.send_message({"type": typ, "to": to, "subject": subject, "content": content}))
+    x = db.channels.update(
+        {"name": target},
+        {"$push": {"messages": {"from": "nobody", "content": content}}},
+        upsert=True)
+    return str(x)
+    #return json.dumps(client.send_message({"type": typ, "to": to, "subject": subject, "content": content}))
 
 @app.route('/public/<filename>')
 def public(filename):
 	logging.debug(filename)
 	return app.send_static_file(filename)
+
+# If we're run directly and not through gunicorn
+if __name__ == '__main__':
+    app.config['DEBUG'] = True
+    app.run()
