@@ -6,11 +6,31 @@ import json
 import gevent
 import pymongo
 import pika
+import time
+import random
 
 from gevent import monkey, Timeout
 from functools import wraps
 from urlparse import urlparse
 from flask import Flask, request, make_response, Response
+
+import json
+from bson.objectid import ObjectId
+from bson.timestamp import Timestamp
+class MyEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        elif isinstance(o, Timestamp):
+            return str(o)
+        else:
+            return json.JSONEncoder.default(self, o)
+
+def rand_id(bits):
+    result = ""
+    for i in range(0, bits / 4):
+        result += random.choice("0123456789abcdef")
+    return result
 
 # XXX
 logging.basicConfig(filename='quebecois.proxy.log', level=logging.DEBUG)
@@ -39,10 +59,8 @@ else:
         host='localhost'))
 
 send_channel = send_conn.channel()
-send_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic')
-
 recv_channel = recv_conn.channel()
-recv_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic')
+send_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
 
 monkey.patch_socket()
 
@@ -91,7 +109,7 @@ def asdf_options():
 def asdf():
     #db.test_collection.insert({"testdoc":[123, 456, {"789": "hiyooo"}]})
     db.test_collection.update({"testdoc":"totaltest"}, {"$push": {"values": str(time.time())}})
-    return json.dumps(str(db.test_collection.find()))
+    return json.dumps(list(db.test_collection.find()), cls=MyEncoder)
 
 @app.route('/subscribe', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -104,20 +122,56 @@ def subscribe_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
-    return json.dumps(client.add_subscriptions([{"name": request.args.get('stream_name')}]))
+    channel_token = request.args.get('channel_token')
+    target = request.args.get('target')
+    queue_name = "channel_token_" + channel_token
+    # XXX is there a way to get confirms/return values on these pika calls?
+    recv_queue = recv_channel.queue_declare(
+        queue=queue_name,
+        # Expire the queue after 5 minutes of disuse. (That means no calls to /subscribe or /events.)
+        arguments={"x-expires", 1000 * 60 * 5})
+    recv_channel.queue_bind(
+        exchange=QUEUE_EXCHANGE,
+        queue=queue_name,
+        routing_key=target)
+    # XXX note that if our routing key contains # or * wildcards, they will apply in 
+    #   getting fresh messages, but not in getting SB unless we do that ourselves. Also,
+    #   the sub entry in the db is gonna get leaked unless we make it expire with a TTL,
+    #   in which case we have to refresh it periodically to keep it alive (and keep it
+    #   in sync with the expiry on the queue or maybe get in trouble?)
+    result = db.subscriptions.update(
+        {"channel_token": channel_token},
+        {"$addToSet": {"targets": target}},
+        upsert=True,
+        w=1)  # This enables write acknowledgement which means we get a result object.
+    return json.dumps(result, cls=MyEncoder)
 
-@app.route('/register', methods=["OPTIONS"])
+@app.route('/event_history', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def register_options():
+def event_history_options():
     return ''
 
-@app.route('/register', methods=["GET"])
+@app.route('/event_history', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def register():
-    return json.dumps(client.register(event_types=["message"]))
+def event_history():
+    channel_token = request.args.get('channel_token')
+    subscriptions = list(db.subscriptions.find({"channel_token": channel_token}, {"targets": 1, "_id": 0}))
+    if len(subscriptions) != 1:
+        return "ERROR"  # XXX
+    targets = subscriptions[0]["targets"]
+    history_chans = list(db.channels.find({"name": {"$in": targets}}))
+
+    history = []
+    for channel in history_chans:
+        for message in channel["messages"]:
+            message["to"] = {"channel": channel["name"]}
+            history.append(message)
+    history.sort(key=lambda message: message.get("timestamp", -1))  # XXX some of our timestamps are missing
+
+    return json.dumps(list(history), cls=MyEncoder)
 
 @app.route('/events', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -130,40 +184,28 @@ def events_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
-    topic = request.args.get('topic')
-    #last_event_id = request.args.get('last_event_id')
-    # The same client has to supply the same handle every time. The first time it will be created;
-    #   subsequently it will be reused.  Right now it's going to be leaked if you stop using it.
     channel_token = request.args.get('channel_token')
-
     queue_name = "channel_token_" + channel_token
-    recv_queue = recv_channel.queue_declare(queue=queue_name)
-    recv_channel.queue_bind(exchange=QUEUE_EXCHANGE,
-        queue=queue_name,
-        routing_key=topic)
 
-    print "events"
+    #XXX this part is still fucky
     def generate():
-        print "generate"
         body = None
         while body is None:
-            print "body is none"
             try:
                 timeout = Timeout(25)
                 timeout.start()
-                print "waiting to receive consume"
-                (method_frame, properties, body) = next(recv_channel.consume(queue_name, no_ack=True))
-                print "received consume"
-                print "asdfasdfasdfasdf\n"
-                print method_frame
-                print properties
-                print body
-                print 'woeitsdklfjsfs\n'
+                logging.debug("Listening on queue %s", queue_name)
+                (method_frame, properties, body) = next(recv_channel.consume(queue_name))
+                #XXX should probably just use a blocking get instead
+                recv_channel.basic_ack(method_frame.delivery_tag)
+                recv_channel.cancel()
+                logging.debug("... got body %s", body)
             except Timeout:
                 pass
             finally:
                 timeout.cancel()
             yield body or ' '
+
 
     return Response(generate())
 
@@ -179,20 +221,28 @@ def send_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def send():
     target = request.args.get('target')
-    #subject = request.args.get('subject')
+    sender = request.args.get('from')
     #content = request.form.get('content')
     content = request.args.get('content')
 
+    message = {
+        "id": rand_id(128),
+        "from": {"user": sender},
+        "timestamp": time.time(),
+        "content": content }
+
+    logging.debug("sending with routing key %s", target)
     send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
         routing_key=target,
-        body=content)
+        body=json.dumps(message, cls=MyEncoder))
+    logging.debug("sent %s message %s", target, json.dumps(message, cls=MyEncoder))
 
-    x = db.channels.update(
+    result = db.channels.update(
         {"name": target},
-        {"$push": {"messages": {"from": "nobody", "content": content}}},
-        upsert=True)
-    return str(x)
-    #return json.dumps(client.send_message({"type": typ, "to": to, "subject": subject, "content": content}))
+        {"$push": {"messages": message}},
+        upsert=True,
+        w=1)  # This enables write acknowledgement which means we get a result object.
+    return json.dumps(result, cls=MyEncoder)
 
 @app.route('/public/<filename>')
 def public(filename):
