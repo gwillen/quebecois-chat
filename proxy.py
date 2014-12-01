@@ -1,18 +1,22 @@
 import sys
 import logging
 import os
-import zulip
 import json
 import gevent
-import pymongo
-import pika
 import time
 import random
 
 from gevent import monkey, Timeout
+
+monkey.patch_all()
+
 from functools import wraps
 from urlparse import urlparse
 from flask import Flask, request, make_response, Response
+
+import pymongo
+import pika
+import zulip
 
 import json
 from bson.objectid import ObjectId
@@ -31,6 +35,8 @@ def rand_id(bits):
     for i in range(0, bits / 4):
         result += random.choice("0123456789abcdef")
     return result
+
+# XXX should have some handling of presence/idle, bidirectional heartbeats
 
 # XXX
 logging.basicConfig(filename='quebecois.proxy.log', level=logging.DEBUG)
@@ -61,8 +67,6 @@ else:
 send_channel = send_conn.channel()
 recv_channel = recv_conn.channel()
 send_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
-
-monkey.patch_socket()
 
 logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
@@ -129,7 +133,7 @@ def subscribe():
     recv_queue = recv_channel.queue_declare(
         queue=queue_name,
         # Expire the queue after 5 minutes of disuse. (That means no calls to /subscribe or /events.)
-        arguments={"x-expires", 1000 * 60 * 5})
+        arguments={"x-expires": 1000 * 60 * 5})
     recv_channel.queue_bind(
         exchange=QUEUE_EXCHANGE,
         queue=queue_name,
@@ -152,6 +156,8 @@ def subscribe():
 def event_history_options():
     return ''
 
+# XXX a good client needs to dedupe between the final history entries and the first /events entries based on the id field.
+# (how does this interact with the possibility that we may have multiple channels? Could we have dupes interspersed with non-dupes?)
 @app.route('/event_history', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -187,7 +193,6 @@ def events():
     channel_token = request.args.get('channel_token')
     queue_name = "channel_token_" + channel_token
 
-    #XXX this part is still fucky
     def generate():
         body = None
         while body is None:
@@ -200,11 +205,24 @@ def events():
                 recv_channel.basic_ack(method_frame.delivery_tag)
                 recv_channel.cancel()
                 logging.debug("... got body %s", body)
-            except Timeout:
+            except Timeout as e:
+                logging.debug("timeout in /events: %s", e)
                 pass
+            except StopIteration as e:
+                logging.error("consume failed with StopIteration: %s", str(e))
+                yield str(e)
+                break
+            except Exception as e:
+                logging.error("consume failed: %s", str(e))
+                yield str(e)
+                break
             finally:
                 timeout.cancel()
-            yield body or ' '
+            if body:
+                # XXX zulip API could return multiple events, we only get one... simulate the zulip API
+                yield json.dumps({"result": "ok", "events": [{"message": json.loads(body)}]})
+            else:
+                yield ' '
 
 
     return Response(generate())
@@ -215,15 +233,14 @@ def events():
 def send_options():
     return ''
 
-@app.route('/send', methods=["GET"])
+@app.route('/send', methods=["POST"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def send():
     target = request.args.get('target')
-    sender = request.args.get('from')
-    #content = request.form.get('content')
-    content = request.args.get('content')
+    sender = request.args.get('sender')
+    content = request.form.get('content')
 
     message = {
         "id": rand_id(128),
@@ -232,10 +249,14 @@ def send():
         "content": content }
 
     logging.debug("sending with routing key %s", target)
-    send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
-        routing_key=target,
-        body=json.dumps(message, cls=MyEncoder))
-    logging.debug("sent %s message %s", target, json.dumps(message, cls=MyEncoder))
+    try:
+        send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
+            routing_key=target,
+            body=json.dumps(message, cls=MyEncoder))
+        logging.debug("sent %s message %s", target, json.dumps(message, cls=MyEncoder))
+    except Exception as e:
+        logging.error("failed to publish: %s", str(e))
+        return str(e)
 
     result = db.channels.update(
         {"name": target},

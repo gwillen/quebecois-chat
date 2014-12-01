@@ -31,35 +31,20 @@ location.
 		parms[parm[0]] = parm[1];
 	});
 
+
 QUEBECOIS = (function(window, $, undefined){
-	var queue_id = undefined;
-	var last_event_id = undefined;
+	var make_id = function() {
+    	var text = "";
+    	var possible = "0123456789abcdef";
+	    for (var i = 0; i < 32; i++ )
+    	    text += possible.charAt(Math.floor(Math.random() * possible.length));
+	    return text;
+	}
+	var channel_token = make_id();
+	console.log("channel token is", channel_token);
 
 	var subscribe = function(stream, k) {
-		$.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&stream_name=' + stream, '', k);
-	};
-
-	var create_stream = function(stream, k) {
-		// I'm as puzzled as you are.
-		subscribe(stream, function(data, textstatus, jqxhr) {
-			var result = JSON.parse(data);
-			console.log("CREATE STREAM", stream, result);
-			if (result.subscribed[BOT_EMAIL]) {
-				// This is a new subscription; since our intent was to create the stream, presume that we did so, and announce it.
-				send('zulip', 'Streams', BOT_NAME + ' just created a new stream `' + stream + '`. To join, visit your [Streams page](https://zulip.com/#subscriptions).');
-			}
-			k();
-		});
-	};
-
-	var register = function(k) {
-		$.get(PROXY + 'register?key=' + MAGIC_KEY, '', function(data, textstatus, jqxhr) {
-			var result = JSON.parse(data);
-			console.log(result);
-			queue_id = result['queue_id'];
-			last_event_id = result['last_event_id'];
-			k();
-		});
+		$.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + channel_token + '&target=' + stream, '', k);
 	};
 
 	var make_id = function(n)
@@ -72,7 +57,18 @@ QUEBECOIS = (function(window, $, undefined){
 		}
 
 		return text;
-	}
+	};
+
+	var get_history_events = function(f) {
+		$.get(PROXY + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
+			var result = JSON.parse(data);
+			result.map(function(message) {
+				// XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
+				// 'true' for 'is historical', which should be better documented
+				f({"message": message}, true);
+			});
+		});
+	};
 
 	var get_events = function(k) {
 		var random_token = make_id(7);
@@ -80,9 +76,9 @@ QUEBECOIS = (function(window, $, undefined){
 		if (LOCALMODE) {
 			var domain = 'http://' + LOCALMODE + '/';
 		}
-		$.get(domain + 'events?key=' + MAGIC_KEY + '&queue_id=' + queue_id + '&last_event_id=' + last_event_id, '', function(data, textstatus, jqxhr) {
+		$.get(domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
 			var result = JSON.parse(data);
-			console.log(result);
+			console.log("events endpoint returned", result);
 			if (result.result == 'error') {
 				console.log("ERROR, BACKING OFF", result);
 				setTimeout(function() {
@@ -94,7 +90,6 @@ QUEBECOIS = (function(window, $, undefined){
 			if (events == undefined) {
 				k([]);
 			}
-			last_event_id = events[events.length - 1]['id'];
 			k(events);
 		});
     };
@@ -107,17 +102,11 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var go = function(stream, topic, f) {
-		register(function() {
-			each_event(function(e) {
+    	subscribe(stream, function() {
+    		get_history_events(f);
+    		each_event(function(e) {
 				if (!e.message) {
 					console.log("EVENT SANS MESSAGE", e);
-					return;
-				}
-				if (e.message.type != 'stream') {
-					return;
-				} else if (stream != '*' && e.message.display_recipient != stream) {
-					return;
-				} else if (topic != '*' && e.message.subject != topic) {
 					return;
 				}
 				f(e);
@@ -125,18 +114,12 @@ QUEBECOIS = (function(window, $, undefined){
 		});
     };
 
-    var send = function(stream, topic, message, autovivify) {
-		$.post(PROXY + 'messages?key=' + MAGIC_KEY + '&type=stream&to=' + stream + '&subject=' + topic,
+    var send = function(stream, username, message) {
+		$.post(PROXY + 'send?key=' + MAGIC_KEY + '&target=' + stream + '&sender=' + username,
 			{"content": message},
 			function(data, textstatus, jqxhr) {
 				var result = JSON.parse(data);
-				console.log(result);
-				if (autovivify && (result.msg == 'Stream does not exist')) {
-					create_stream(stream, function() {
-						// Never autovivify again, to avoid recursing in weird cases.
-						send(stream, topic, message);
-					});
-				}
+				console.log("send endpoint returned", result);
 			});
     }
 

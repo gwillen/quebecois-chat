@@ -12,37 +12,13 @@
 				var parm = x.split('=');
 				parms[parm[0]] = parm[1];
 			});
-		document.write('<script type="text/javascript" src="zuliptest.js?v=' + parms['v'] + '""><' + '/script>');
-
-		function transform_title(title) {
-			var prefix = title.substr(0, 2);
-			if (!/^R\d/.test(prefix)) {
-				return undefined;
-			} else {
-				return 'Я' + title.substr(1);
-			}
-		}
-
-		function stream_url(title) {
-			var stream_title = transform_title(title);
-			if (stream_title) {
-				return 'https://zulip.com/#narrow/stream/' + stream_title;
-			} else {
-				return 'https://zulip.com/#narrow/stream/wiki/topic/' + title;
-			}
-		}
+		document.write('<script type="text/javascript" src="chattest.js?v=' + parms['v'] + '""><' + '/script>');
 
 		function send_message() {
 			var msg_box = $('#message_out');
 			var username = username_box.val();
-			current_topic = topic_box.val();
-			var message = '';
-			if (username) {
-				message += '<' + username + '> ';
-			}
-
-			message += msg_box.val();
-			QUEBECOIS.send(current_stream, current_topic, message, true);
+			var message = msg_box.val();
+			QUEBECOIS.send(current_stream, username, message, true);
 			msg_box.val('');
 		}
 	</script>
@@ -108,19 +84,6 @@
 		current_topic = topic_box.val();
 		subscribe_topic = '*';
 
-		var puzzle_stream = transform_title(current_page);
-		if (puzzle_stream) {
-			current_stream = puzzle_stream;
-		} else {
-			current_topic = current_page;
-			subscribe_topic = current_page;
-			topic_box.val(current_topic);
-			topic_box
-		}
-
-		var u = stream_url(current_page);
-		$('#streamlink').append($('<a target="_blank" href="' + u + '">' + u + '</a>'));
-
 		// XXX: slightly ugh.
 		$('#messages').css({'height': '' + ($('body').height() - $('table').height() - $('#streamlink').height()) + 'px'});
 
@@ -132,20 +95,18 @@
 			QUEBECOIS.hide_chatpane($('#hide_checkbox')[0].checked);
 		});
 
-		QUEBECOIS.go(current_stream, subscribe_topic, function(e) {
-			console.log("GOT EVENT", e);
-			var sender = e.message.sender_full_name;
+		QUEBECOIS.go(current_stream, subscribe_topic, function(e, old) {
+			//XXX console.log("GOT EVENT", e);
+			var sender = e.message.from.user;
 			var content = e.message.content;
 			var message = '';
 			message += formatTime(e.message.timestamp) + " ";
-			message += '{' + e.message.subject + "} ";
-			if (e.message.sender_email == BOT_EMAIL) {
-				message += content;
-			} else {
-				message += '[' + sender + '] ' + content;
-			}
+			message += '<' + sender + '> ' + content;
 
 			var msg_div = $('<div>');
+			if (old) {
+				msg_div.css({"background-color": "lightgrey"});
+			}
 			var messages_div = $('#messages');
 			var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
 			msg_div.text(message);
