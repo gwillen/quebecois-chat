@@ -65,6 +65,7 @@ else:
 setup_conn = pika.BlockingConnection(pika_tx_params)
 setup_channel = setup_conn.channel()
 setup_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
+setup_conn.close()
 
 logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
