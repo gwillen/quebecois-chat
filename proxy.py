@@ -56,17 +56,15 @@ else:
     db = mongo_conn['someapps-db']
 
 if TX_QUEUE_URL and RX_QUEUE_URL:
-    send_conn = pika.BlockingConnection(pika.URLParameters(TX_QUEUE_URL))
-    recv_conn = pika.BlockingConnection(pika.URLParameters(RX_QUEUE_URL))
+    pika_tx_params = pika.URLParameters(TX_QUEUE_URL)
+    pika_rx_params = pika.URLParameters(RX_QUEUE_URL)
 else:
-    send_conn = pika.BlockingConnection(pika.ConnectionParameters(
-        host='localhost'))
-    recv_conn = pika.BlockingConnection(pika.ConnectionParameters(
-        host='localhost'))
+    pika_tx_params = pika.ConnectionParameters(host='localhost')
+    pika_rx_params = pika.ConnectionParameters(host='localhost')
 
-send_channel = send_conn.channel()
-recv_channel = recv_conn.channel()
-send_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
+setup_conn = pika.BlockingConnection(pika_tx_params)
+setup_channel = setup_conn.channel()
+setup_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
 
 logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
@@ -126,6 +124,9 @@ def subscribe_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
+    rx_conn = pika.BlockingConnection(pika_rx_params)
+    recv_channel = rx_conn.channel()
+
     channel_token = request.args.get('channel_token')
     target = request.args.get('target')
     queue_name = "channel_token_" + channel_token
@@ -138,6 +139,9 @@ def subscribe():
         exchange=QUEUE_EXCHANGE,
         queue=queue_name,
         routing_key=target)
+
+    rx_conn.close()
+
     # XXX note that if our routing key contains # or * wildcards, they will apply in 
     #   getting fresh messages, but not in getting SB unless we do that ourselves. Also,
     #   the sub entry in the db is gonna get leaked unless we make it expire with a TTL,
@@ -190,6 +194,9 @@ def events_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
+    rx_conn = pika.BlockingConnection(pika_rx_params)
+    recv_channel = rx_conn.channel()
+
     channel_token = request.args.get('channel_token')
     queue_name = "channel_token_" + channel_token
 
@@ -223,7 +230,8 @@ def events():
                 yield json.dumps({"result": "ok", "events": [{"message": json.loads(body)}]})
             else:
                 yield ' '
-
+        # XXX we probably leak connections in some case or other
+        rx_conn.close()
 
     return Response(generate())
 
@@ -238,6 +246,9 @@ def send_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def send():
+    tx_conn = pika.BlockingConnection(pika_tx_params)
+    send_channel = tx_conn.channel()
+
     target = request.args.get('target')
     sender = request.args.get('sender')
     content = request.form.get('content')
@@ -257,6 +268,8 @@ def send():
     except Exception as e:
         logging.error("failed to publish: %s", str(e))
         return str(e)
+    finally:
+        tx_conn.close()
 
     result = db.channels.update(
         {"name": target},
