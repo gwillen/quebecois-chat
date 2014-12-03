@@ -43,6 +43,16 @@ QUEBECOIS = (function(window, $, undefined){
 	var channel_token = make_id();
 	console.log("channel token is", channel_token);
 
+	var json_parse = function(data) {
+		try {
+			result = JSON.parse(data);
+		} catch(e) {
+			console.log("JSON parse error parsing", data, "error was", e);
+			result = {"status": "error", "error": "JSON parse error: " + e};
+		}
+		return result;
+	}
+
 	var subscribe = function(stream, k) {
 		$.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + channel_token + '&target=' + stream, '', k);
 	};
@@ -61,7 +71,7 @@ QUEBECOIS = (function(window, $, undefined){
 
 	var get_history_events = function(f) {
 		$.get(PROXY + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
-			var result = JSON.parse(data);
+			var result = json_parse(data);
 			result.map(function(message) {
 				// XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
 				// 'true' for 'is historical', which should be better documented
@@ -77,7 +87,7 @@ QUEBECOIS = (function(window, $, undefined){
 			var domain = 'http://' + LOCALMODE + '/';
 		}
 		$.get(domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
-			var result = JSON.parse(data);
+			var result = json_parse(data);
 			console.log("events endpoint returned", result);
 			if (result.result == 'error') {
 				console.log("ERROR, BACKING OFF", result);
@@ -118,7 +128,7 @@ QUEBECOIS = (function(window, $, undefined){
 		$.post(PROXY + 'send?key=' + MAGIC_KEY + '&target=' + stream + '&sender=' + username,
 			{"content": message},
 			function(data, textstatus, jqxhr) {
-				var result = JSON.parse(data);
+				var result = json_parse(data);
 				console.log("send endpoint returned", result);
 			});
     }
