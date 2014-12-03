@@ -198,49 +198,39 @@ def events_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def events():
-    try:
-        rx_conn = pika.BlockingConnection(pika_rx_params)
-        recv_channel = rx_conn.channel()
+    channel_token = request.args.get('channel_token')
+    queue_name = "channel_token_" + channel_token
+    logging.debug("Listening on queue %s", queue_name)
 
-        channel_token = request.args.get('channel_token')
-        queue_name = "channel_token_" + channel_token
+    def generate():
+        body = None
+        rx_conn = None
+        recv_channel = None
 
-        def generate():
-            body = None
+        try:
+            rx_conn = pika.BlockingConnection(pika_rx_params)
+            recv_channel = rx_conn.channel()
+
             while body is None:
-                try:
-                    timeout = Timeout(25)
-                    timeout.start()
-                    logging.debug("Listening on queue %s", queue_name)
-                    (method_frame, properties, body) = next(recv_channel.consume(queue_name))
-                    #XXX should probably just use a blocking get instead
-                    recv_channel.basic_ack(method_frame.delivery_tag)
-                    recv_channel.cancel()
-                    logging.debug("... got body %s", body)
-                except Timeout as e:
-                    logging.debug("timeout in /events: %s", e)
-                    pass
-                except StopIteration as e:
-                    logging.error("consume failed with StopIteration: %s", str(e))
-                    yield str(e)
-                    break
-                except Exception as e:
-                    logging.error("consume failed: %s", str(e))
-                    yield str(e)
-                    break
-                finally:
-                    timeout.cancel()
-                if body:
-                    # XXX zulip API could return multiple events, we only get one... simulate the zulip API
-                    yield json.dumps({"result": "ok", "events": [{"message": json.loads(body)}]})
-                else:
-                    yield ' '
-            # XXX we probably leak connections in some case or other
-            rx_conn.close()
+                # Reassure the middleware periodically so it doesn't time out on us.
+                yield ' '
+                with Timeout(25, False):
+                    (method, properties, body) = next(recv_channel.consume(queue_name))
+            # Got something!
+            recv_channel.basic_ack(method.delivery_tag)
+            logging.debug("... got body %s", body)
+            # XXX zulip API could return multiple events, we only get one... simulate the zulip API
+            yield json.dumps({"result": "ok", "events": [{"message": json.loads(body)}]})
+        except Exception as e:
+            logging.error("getting events failed: %s", str(e))
+            yield json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+        finally:
+            if recv_channel is not None:
+                recv_channel.cancel()
+            if rx_conn is not None:
+                rx_conn.close()
 
-        return Response(generate())
-    except Exception as e:
-        return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+    return Response(generate())
 
 @app.route('/send', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
