@@ -35,6 +35,9 @@
             <td width='99%'>
                 <input type='text' name='message_out' id='message_out' placeholder='message' style='width: 100%'>
             </td>
+            <td id='freshness' style="white-space: nowrap;">
+                Lag: NaN
+            </td>
             <td style="white-space: nowrap;">
                 <input type='submit' name='submit' value='Send'>
                 <input type='checkbox' name='fixed' id='fixed_checkbox'>
@@ -91,6 +94,19 @@
         $('#hide_checkbox').click(function() {
             QUEBECOIS.hide_chatpane($('#hide_checkbox')[0].checked);
         });
+
+        QUEBECOIS.xhr_state_length = -1;
+        var update_lag_meter = function() {
+            var now = (new Date().getTime())/1000;
+            if (QUEBECOIS.xhr && QUEBECOIS.xhr.responseText.length != QUEBECOIS.xhr_state_length) {
+                QUEBECOIS.xhr_state_length = QUEBECOIS.xhr.responseText.length;
+                QUEBECOIS.last_poll_time = now;
+            }
+            var lag = now - QUEBECOIS.last_poll_time;
+            $('#freshness').text("Lag: " + Math.round(lag) + " s");
+            setTimeout(update_lag_meter, 1000);
+        }
+        update_lag_meter();
 
         QUEBECOIS.go(current_channel, function(e, old) {
             //XXX console.log("GOT EVENT", e);

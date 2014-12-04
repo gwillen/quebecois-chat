@@ -85,7 +85,8 @@ QUEBECOIS = (function(window, $, undefined){
         if (LOCALMODE) {
             var domain = 'http://' + LOCALMODE + '/';
         }
-        $.get(domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
+        QUEBECOIS.xhr = $.get(domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
+            QUEBECOIS.last_poll_time = (new Date().getTime())/1000;
             var result = json_parse(data);
             console.log("events endpoint returned", result);
             if (result.result == 'error') {

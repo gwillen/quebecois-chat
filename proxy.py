@@ -208,13 +208,14 @@ def events():
         recv_channel = None
 
         try:
+            yield ' ' * 4096  # Force old Chrome to flush things and populate xhr.responseText
             rx_conn = pika.BlockingConnection(pika_rx_params)
             recv_channel = rx_conn.channel()
 
             while body is None:
-                # Reassure the middleware periodically so it doesn't time out on us.
+                # Reassure the middleware periodically so it doesn't time out on us, and give the client a heartbeat to know we're still here.
                 yield ' '
-                with Timeout(25, False):
+                with Timeout(5, False):
                     (method, properties, body) = next(recv_channel.consume(queue_name))
             # Got something!
             recv_channel.basic_ack(method.delivery_tag)
