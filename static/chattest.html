@@ -1,7 +1,7 @@
 <html>
 
 <head>
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
     <script type="text/javascript">
         parms = {};
         location.
@@ -98,7 +98,7 @@
         QUEBECOIS.xhr_state_length = -1;
         var update_lag_meter = function() {
             var now = (new Date().getTime())/1000;
-            if (QUEBECOIS.xhr && QUEBECOIS.xhr.responseText.length != QUEBECOIS.xhr_state_length) {
+            if (QUEBECOIS.xhr && QUEBECOIS.xhr.responseText && QUEBECOIS.xhr.responseText.length != QUEBECOIS.xhr_state_length) {
                 QUEBECOIS.xhr_state_length = QUEBECOIS.xhr.responseText.length;
                 QUEBECOIS.last_poll_time = now;
             }
@@ -108,6 +108,7 @@
         }
         update_lag_meter();
 
+        var messages_div = $('#messages');
         QUEBECOIS.go(current_channel, function(e, old) {
             //XXX console.log("GOT EVENT", e);
             var sender = e.message.from.user;
@@ -120,13 +121,15 @@
             if (old) {
                 msg_div.css({"background-color": "lightgrey"});
             }
-            var messages_div = $('#messages');
             var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
             msg_div.text(message);
             messages_div.append(msg_div);
             if (at_bottom) {
                 messages_div.scrollTop(messages_div[0].scrollHeight);
             }
+        }, function() {
+            // If something goes really wrong, clear it all so we can start over.
+            messages_div.text('');
         });
     </script>
 </body>

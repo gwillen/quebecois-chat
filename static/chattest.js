@@ -1,6 +1,6 @@
 /////
-LOCALMODE = 'localhost.rotq.net:5000';
-//LOCALMODE = false;
+//LOCALMODE = 'localhost.rotq.net:5000';
+LOCALMODE = false;
 /////
 
 PROXY = 'http://scripts.x.rotq.net/';
@@ -68,9 +68,11 @@ QUEBECOIS = (function(window, $, undefined){
         return text;
     };
 
-    var get_history_events = function(f) {
+    var get_history_events = function(f, clear_chat) {
         $.get(PROXY + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
             var result = json_parse(data);
+            // In case we're restarting, clear at the last possible moment before replacing the contents.
+            clear_chat();
             result.map(function(message) {
                 // XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
                 // 'true' for 'is historical', which should be better documented
@@ -79,47 +81,67 @@ QUEBECOIS = (function(window, $, undefined){
         });
     };
 
-    var get_events = function(k) {
+    var get_events = function(k, fatal) {
         var random_token = make_id(7);
         var domain = 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
         if (LOCALMODE) {
             var domain = 'http://' + LOCALMODE + '/';
         }
-        QUEBECOIS.xhr = $.get(domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
-            QUEBECOIS.last_poll_time = (new Date().getTime())/1000;
-            var result = json_parse(data);
-            console.log("events endpoint returned", result);
-            if (result.result == 'error') {
-                console.log("ERROR, BACKING OFF", result);
-                setTimeout(function() {
+        $.ajax({
+            url: domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token,
+            dataType: 'text',
+            xhr: function() {
+                QUEBECOIS.xhr = $.ajaxSettings.xhr();
+                return QUEBECOIS.xhr;
+            },
+            success: function(data, textstatus, jqxhr) {
+                QUEBECOIS.last_poll_time = (new Date().getTime())/1000;
+                var result = json_parse(data);
+                console.log("events endpoint returned", result);
+                if (result.result == 'fatal') {
+                    console.log("Fatal error, restarting everything");
+                    fatal();
+                    return;
+                } else if (result.result == 'error') {
+                    console.log("ERROR, BACKING OFF", result);
+                    setTimeout(function() {
+                        k([]);
+                    }, ERROR_BACKOFF);
+                    return;
+                }
+                events = result['events'];
+                if (events == undefined) {
                     k([]);
-                }, ERROR_BACKOFF);
-                return;
+                }
+                k(events);
+            },
+            error: function(jqxhr, textstatus, errorthrown) {
+                console.log("events endpoint failed, backing off. Textstatus was:", textstatus, "; Error was:", errorthrown);
+                setTimeout(function() {
+                        k([]);
+                }, ERROR_BACKOFF)
             }
-            events = result['events'];
-            if (events == undefined) {
-                k([]);
-            }
-            k(events);
         });
     };
 
-    var each_event = function(f) {
+    var each_event = function(f, fatal) {
         get_events(function(events) {
             events.map(f);
-            setTimeout(0, each_event(f));
-        });
+            setTimeout(0, each_event(f, fatal));
+        }, fatal);
     };
 
-    var go = function(channel, f) {
+    var go = function(channel, f, clear_chat) {
         subscribe(channel, function() {
-            get_history_events(f);
+            get_history_events(f, clear_chat);
             each_event(function(e) {
                 if (!e.message) {
                     console.log("EVENT SANS MESSAGE", e);
                     return;
                 }
                 f(e);
+            }, function() {
+                setTimeout(0, go(channel, f, clear_chat));
             });
         });
     };

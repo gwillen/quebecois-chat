@@ -222,8 +222,16 @@ def events():
             logging.debug("... got body %s", body)
             # XXX zulip API could return multiple events, we only get one... simulate the zulip API
             yield json.dumps({"result": "ok", "events": [{"message": json.loads(body)}]})
+        except pika.exceptions.ChannelClosed as e:
+            logging.error("getting events failed with ChannelClosed: %s", e)
+            result = "error"
+            if e.args[0] == 404:
+                # Our queue expired; give up and start over.
+                logging.error("Fatal, queue seems gone; starting over")
+                result = "fatal"
+            yield json.dumps({"result": result, "error": str(e)}, cls=MyEncoder)
         except Exception as e:
-            logging.error("getting events failed: %s", str(e))
+            logging.error("getting events failed: %s (exception's type is %s)", e, str(type(e)))
             yield json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
         finally:
             if recv_channel is not None:
