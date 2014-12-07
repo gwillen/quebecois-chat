@@ -46,7 +46,7 @@ QUEBECOIS = (function(window, $, undefined){
         try {
             result = JSON.parse(data);
         } catch(e) {
-            console.log("JSON parse error parsing", data, "error was", e);
+            console.log("JSON parse error parsing '", data, "'; error was:", e);
             result = {"status": "error", "error": "JSON parse error: " + e};
         }
         return result;

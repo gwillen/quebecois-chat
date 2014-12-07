@@ -4,6 +4,7 @@ import os
 import json
 import gevent
 import time
+import datetime
 import random
 
 from gevent import monkey, Timeout
@@ -47,6 +48,9 @@ TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
 QUEUE_EXCHANGE = 'test'
 
+# Default of 0.25 seconds is too quick for my taste; give it 5 seconds.
+pika.adapters.BlockingConnection.SOCKET_CONNECT_TIMEOUT = 5
+
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
     db = mongo_conn[urlparse(MONGO_URL).path[1:]]
@@ -56,8 +60,8 @@ else:
     db = mongo_conn['someapps-db']
 
 if TX_QUEUE_URL and RX_QUEUE_URL:
-    pika_tx_params = pika.URLParameters(TX_QUEUE_URL)
-    pika_rx_params = pika.URLParameters(RX_QUEUE_URL)
+    pika_tx_params = pika.URLParameters(TX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3")
+    pika_rx_params = pika.URLParameters(RX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3")
 else:
     pika_tx_params = pika.ConnectionParameters(host='localhost')
     pika_rx_params = pika.ConnectionParameters(host='localhost')
@@ -174,7 +178,7 @@ def event_history():
     channel_token = request.args.get('channel_token')
     subscriptions = list(db.subscriptions.find({"channel_token": channel_token}, {"targets": 1, "_id": 0}))
     if len(subscriptions) != 1:
-        return "ERROR"  # XXX
+        return json.dumps({"result": "error", "error": "bad subscriptions list: " + str(subscriptions)});
     targets = subscriptions[0]["targets"]
     history_chans = list(db.channels.find({"name": {"$in": targets}}))
 
@@ -209,8 +213,11 @@ def events():
 
         try:
             yield ' ' * 4096  # Force old Chrome to flush things and populate xhr.responseText
+            logging.debug("Opening BlockingConnection with params %s (%s)", str(pika_rx_params), datetime.datetime.now().strftime("%I:%M:%S"))
             rx_conn = pika.BlockingConnection(pika_rx_params)
+            logging.debug("Connection open, getting channel (%s)", datetime.datetime.now().strftime("%I:%M:%S"))
             recv_channel = rx_conn.channel()
+            logging.debug("Channel is open")
 
             while body is None:
                 # Reassure the middleware periodically so it doesn't time out on us, and give the client a heartbeat to know we're still here.
@@ -231,7 +238,7 @@ def events():
                 result = "fatal"
             yield json.dumps({"result": result, "error": str(e)}, cls=MyEncoder)
         except Exception as e:
-            logging.error("getting events failed: %s (exception's type is %s)", e, str(type(e)))
+            logging.error("getting events failed: %s (exception's type is %s) (%s)", e, str(type(e)), datetime.datetime.now().strftime("%I:%M:%S"))
             yield json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
         finally:
             if recv_channel is not None:
