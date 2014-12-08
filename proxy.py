@@ -48,9 +48,6 @@ TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
 QUEUE_EXCHANGE = 'test'
 
-# Default of 0.25 seconds is too quick for my taste; give it 5 seconds.
-pika.adapters.BlockingConnection.SOCKET_CONNECT_TIMEOUT = 5
-
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
     db = mongo_conn[urlparse(MONGO_URL).path[1:]]
@@ -58,6 +55,9 @@ else:
     # Not on an app with the MongoHQ add-on, do some localhost action
     mongo_conn = pymongo.Connection('localhost', 27017)
     db = mongo_conn['someapps-db']
+
+# Default of 0.25 seconds is too quick for my taste; give it 5 seconds.
+pika.adapters.BlockingConnection.SOCKET_CONNECT_TIMEOUT = 5
 
 if TX_QUEUE_URL and RX_QUEUE_URL:
     pika_tx_params = pika.URLParameters(TX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3")
@@ -293,11 +293,6 @@ def send():
         return json.dumps({"result": "ok", "mongo": mongo_result}, cls=MyEncoder)
     except Exception as e:
         return json.dumps({"result": "error", "error": str(e)})
-
-@app.route('/public/<filename>')
-def public(filename):
-    logging.debug(filename)
-    return app.send_static_file(filename)
 
 # If we're run directly and not through gunicorn
 if __name__ == '__main__':
