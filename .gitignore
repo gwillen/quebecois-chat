@@ -2,3 +2,4 @@ venv
 *.pyc
 error.log
 *.log
+static/image*
