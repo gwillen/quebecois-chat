@@ -162,6 +162,21 @@ def subscribe():
     except Exception as e:
         return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
 
+@app.route('/channels', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def channels_options():
+    return ''
+
+@app.route('/channels', methods=["GET"])
+@require_key()
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def channels():
+    channels = list(db.channels.find({}, {"name": 1, "_id": 0}))
+    channels = map(lambda x: x["name"], channels)
+    return json.dumps(channels, cls=MyEncoder)
+
 @app.route('/event_history', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
