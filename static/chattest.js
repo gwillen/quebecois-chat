@@ -1,7 +1,6 @@
-/////
-//LOCALMODE = 'localhost.rotq.net:5000';
-LOCALMODE = false;
-/////
+if (!window.LOCALMODE) {
+    LOCALMODE = false;
+}
 
 PROXY = 'http://scripts.x.rotq.net/';
 LONGPOLL_DOMAIN = 'x.rotq.net';

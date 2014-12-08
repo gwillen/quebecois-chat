@@ -3,3 +3,4 @@ venv
 error.log
 *.log
 static/image*
+static/chatdebug.js
