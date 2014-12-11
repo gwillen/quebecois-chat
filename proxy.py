@@ -103,21 +103,6 @@ def require_key():
         return decorated_function
     return decorator
 
-@app.route('/asdf', methods=["OPTIONS"])
-@add_response_headers({'Access-Control-Allow-Origin': '*'})
-@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def asdf_options():
-    return ''
-
-@app.route('/asdf', methods=["GET"])
-@require_key()
-@add_response_headers({'Access-Control-Allow-Origin': '*'})
-@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
-def asdf():
-    #db.test_collection.insert({"testdoc":[123, 456, {"789": "hiyooo"}]})
-    db.test_collection.update({"testdoc":"totaltest"}, {"$push": {"values": str(time.time())}})
-    return json.dumps(list(db.test_collection.find()), cls=MyEncoder)
-
 @app.route('/subscribe', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
@@ -158,9 +143,9 @@ def subscribe():
             {"$addToSet": {"targets": target}},
             upsert=True,
             w=1)  # This enables write acknowledgement which means we get a result object.
-        return json.dumps({"result": "ok", "mongo": result}, cls=MyEncoder)
+        return json.dumps({"result": "ok", "channel_token": channel_token, "mongo": result}, cls=MyEncoder)
     except Exception as e:
-        return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+        return json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
 
 @app.route('/channels', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -175,7 +160,7 @@ def channels_options():
 def channels():
     channels = list(db.channels.find({}, {"name": 1, "_id": 0}))
     channels = map(lambda x: x["name"], channels)
-    return json.dumps(channels, cls=MyEncoder)
+    return json.dumps({"result": "ok", "channels": channels}, cls=MyEncoder)
 
 @app.route('/event_history', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -193,7 +178,7 @@ def event_history():
     channel_token = request.args.get('channel_token')
     subscriptions = list(db.subscriptions.find({"channel_token": channel_token}, {"targets": 1, "_id": 0}))
     if len(subscriptions) != 1:
-        return json.dumps({"result": "error", "error": "bad subscriptions list: " + str(subscriptions)});
+        return json.dumps({"result": "error", "channel_token": channel_token, "error": "bad subscriptions list: " + str(subscriptions)});
     targets = subscriptions[0]["targets"]
     history_chans = list(db.channels.find({"name": {"$in": targets}}))
 
@@ -204,7 +189,7 @@ def event_history():
             history.append(message)
     history.sort(key=lambda message: message.get("timestamp", -1))  # XXX some of our timestamps are missing
 
-    return json.dumps(list(history), cls=MyEncoder)
+    return json.dumps({"result": "ok", "channel_token": channel_token, "events": list(history)}, cls=MyEncoder)
 
 @app.route('/events', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -243,7 +228,7 @@ def events():
             recv_channel.basic_ack(method.delivery_tag)
             logging.debug("... got body %s", body)
             # XXX zulip API could return multiple events, we only get one... simulate the zulip API
-            yield json.dumps({"result": "ok", "events": [{"message": json.loads(body)}]})
+            yield json.dumps({"result": "ok", "channel_token": channel_token, "events": [{"message": json.loads(body)}]})
         except pika.exceptions.ChannelClosed as e:
             logging.error("getting events failed with ChannelClosed: %s", e)
             result = "error"
@@ -251,10 +236,10 @@ def events():
                 # Our queue expired; give up and start over.
                 logging.error("Fatal, queue seems gone; starting over")
                 result = "fatal"
-            yield json.dumps({"result": result, "error": str(e)}, cls=MyEncoder)
+            yield json.dumps({"result": result, "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         except Exception as e:
             logging.error("getting events failed: %s (exception's type is %s) (%s)", e, str(type(e)), datetime.datetime.now().strftime("%I:%M:%S"))
-            yield json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+            yield json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         finally:
             if recv_channel is not None:
                 recv_channel.cancel()

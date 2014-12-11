@@ -26,12 +26,14 @@
 </head>
 
 <body style='margin: 0px'>
-    <form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px'>
+    <form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px' name='message_form'>
         <div id='messages' style='width: 100%; overflow: auto'></div>
         <table width='100%'><tr>
             <td style="white-space: nowrap;">
                 <input type='text' name='username' id='username' placeholder='username'>
-                <input type='text' name='channel' id='channel' placeholder='channel'>
+                <select disabled name='channel_list' id='channel_list'>
+                    <option value="x" selected="selected">Loading...</option>
+                </select>
             </td>
             <td width='99%'>
                 <input type='text' name='message_out' id='message_out' placeholder='message' style='width: 100%'>
@@ -72,18 +74,31 @@
         if (parms['user']) {
             username_box.val(parms['user']);
         }
-        var channel_box = $('#channel');
         if (parms['channel']) {
-            channel_box.val(parms['channel']);
+            current_channel = parms['channel'];
         } else {
-            channel_box.val('wikichat');
+            current_channel = 'wikichat';
         }
 
-        if (parms['page']) {
-            current_page = parms['page'];
-        }
+        $('#channel_list').change(function(e) {
+            console.log("value is: ", e.target.value);
+            current_channel = e.target.value;
+            start_your_engines();
+        });
 
-        current_channel = channel_box.val();
+        QUEBECOIS.get_channels(function(channels) {
+            var channel_list = $('#channel_list');
+            if (channels && channels.length > 0) {
+                channel_list.children(0).remove();
+                channels.map(function(ch) {
+                    channel_list.append($('<option>' + ch + '</option>'));
+                });
+                channel_list.val(current_channel);
+                channel_list.prop("disabled", false);
+            } else {
+                console.log("FUCK XXX"); // XXX
+            }
+        });
 
         // XXX: slightly ugh.
         $('#messages').css({'height': '' + ($('body').height() - $('table').height()) + 'px'});
@@ -109,29 +124,33 @@
         }
         update_lag_meter();
 
-        var messages_div = $('#messages');
-        QUEBECOIS.go(current_channel, function(e, old) {
-            //XXX console.log("GOT EVENT", e);
-            var sender = e.message.from.user;
-            var content = e.message.content;
-            var message = '';
-            message += formatTime(e.message.timestamp) + " ";
-            message += '<' + sender + '> ' + content;
+        var start_your_engines = function() {
+            var messages_div = $('#messages');
+            QUEBECOIS.go(current_channel, function(e, old) {
+                //XXX console.log("GOT EVENT", e);
+                var sender = e.message.from.user;
+                var content = e.message.content;
+                var message = '';
+                message += formatTime(e.message.timestamp) + " ";
+                message += '<' + sender + '> ' + content;
 
-            var msg_div = $('<div>');
-            if (old) {
-                msg_div.css({"background-color": "lightgrey"});
-            }
-            var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
-            msg_div.text(message);
-            messages_div.append(msg_div);
-            if (at_bottom) {
-                messages_div.scrollTop(messages_div[0].scrollHeight);
-            }
-        }, function() {
-            // If something goes really wrong, clear it all so we can start over.
-            messages_div.text('');
-        });
+                var msg_div = $('<div>');
+                if (old) {
+                    msg_div.css({"background-color": "lightgrey"});
+                }
+                var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
+                msg_div.text(message);
+                messages_div.append(msg_div);
+                if (at_bottom) {
+                    messages_div.scrollTop(messages_div[0].scrollHeight);
+                }
+            }, function() {
+                // If something goes really wrong, clear it all so we can start over.
+                messages_div.text('');
+            });
+        };
+
+        start_your_engines();
     </script>
 </body>
 

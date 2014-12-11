@@ -31,15 +31,12 @@ location.
 
 
 QUEBECOIS = (function(window, $, undefined){
-    var make_id = function() {
-        var text = "";
-        var possible = "0123456789abcdef";
-        for (var i = 0; i < 32; i++ )
-            text += possible.charAt(Math.floor(Math.random() * possible.length));
-        return text;
+    var channel_token = undefined;
+
+    var fresh_token = function() {
+        channel_token = make_id(32);
+        console.log("fresh channel token is", channel_token);
     }
-    var channel_token = make_id();
-    console.log("channel token is", channel_token);
 
     var json_parse = function(data) {
         try {
@@ -58,7 +55,7 @@ QUEBECOIS = (function(window, $, undefined){
     var make_id = function(n)
     {
         var text = "";
-        var possible = "abcdefghijklmnopqrstuvwxyz";
+        var possible = "0123456789abcdef";
 
         for (var i = 0; i < n; i++) {
             text += possible.charAt(Math.floor(Math.random() * possible.length));
@@ -72,7 +69,9 @@ QUEBECOIS = (function(window, $, undefined){
             var result = json_parse(data);
             // In case we're restarting, clear at the last possible moment before replacing the contents.
             clear_chat();
-            result.map(function(message) {
+            // XXX error checking
+            var events = result.events;
+            events.map(function(message) {
                 // XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
                 // 'true' for 'is historical', which should be better documented
                 f({"message": message}, true);
@@ -81,7 +80,7 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var get_events = function(k, fatal) {
-        var random_token = make_id(7);
+        var random_token = make_id(8);
         var domain = 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
         if (LOCALMODE) {
             var domain = 'http://' + LOCALMODE + '/';
@@ -97,6 +96,12 @@ QUEBECOIS = (function(window, $, undefined){
                 QUEBECOIS.last_poll_time = (new Date().getTime())/1000;
                 var result = json_parse(data);
                 console.log("events endpoint returned", result);
+
+                if (result.channel_token != channel_token) {
+                    console.log("Bad channel token, discarding stale return and cancelling further requests (Got: ", result.channel_token, ", expected:", channel_token, ")");
+                    return;
+                }
+
                 if (result.result == 'fatal') {
                     console.log("Fatal error, restarting everything");
                     fatal();
@@ -108,6 +113,7 @@ QUEBECOIS = (function(window, $, undefined){
                     }, ERROR_BACKOFF);
                     return;
                 }
+
                 events = result['events'];
                 if (events == undefined) {
                     k([]);
@@ -131,6 +137,7 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var go = function(channel, f, clear_chat) {
+        fresh_token();
         subscribe(channel, function() {
             get_history_events(f, clear_chat);
             each_event(function(e) {
@@ -139,6 +146,7 @@ QUEBECOIS = (function(window, $, undefined){
                     return;
                 }
                 f(e);
+                /// XXX I think I actually don't need a lot of these setTimeouts, I'm safe if I'm inside a callback since those are called on the main loop anyway... only if there's a possible other codepath.
             }, function() {
                 setTimeout(0, go(channel, f, clear_chat));
             });
@@ -152,7 +160,16 @@ QUEBECOIS = (function(window, $, undefined){
                 var result = json_parse(data);
                 console.log("send endpoint returned", result);
             });
-    }
+    };
+
+    var get_channels = function(f) {
+        $.get(PROXY + 'channels?key=' + MAGIC_KEY, function(data, textstatus, jqxhr) {
+            var result = json_parse(data);
+            // XXX error checking
+            channels = result.channels;
+            f(channels);
+        });
+    };
 
     var abuse_mediawiki = function() {
         var username = $('#pt-userpage').text();
@@ -206,6 +223,7 @@ QUEBECOIS = (function(window, $, undefined){
     return {
         go: go,
         send: send,
+        get_channels: get_channels,
         abuse_mediawiki: abuse_mediawiki,
         fixed_chatpane: fixed_chatpane,
         hide_chatpane: hide_chatpane
