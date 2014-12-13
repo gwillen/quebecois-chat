@@ -126,7 +126,10 @@
 
         var start_your_engines = function() {
             var messages_div = $('#messages');
-            QUEBECOIS.go(current_channel, function(e, old) {
+            if (window.chat_connection) {
+                window.chat_connection.close_connection();
+            }
+            window.chat_connection = new QUEBECOIS.ChatConnection([current_channel], function(e, old) {
                 //XXX console.log("GOT EVENT", e);
                 var sender = e.message.from.user;
                 var content = e.message.content;
@@ -148,6 +151,7 @@
                 // If something goes really wrong, clear it all so we can start over.
                 messages_div.text('');
             });
+            console.log("HTML Created new chatconnection with uid ", window.chat_connection.uniqueId());
         };
 
         start_your_engines();

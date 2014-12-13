@@ -31,12 +31,9 @@ location.
 
 
 QUEBECOIS = (function(window, $, undefined){
-    var channel_token = undefined;
-
-    var fresh_token = function() {
-        channel_token = make_id(32);
-        console.log("fresh channel token is", channel_token);
-    }
+    //
+    // Minor helper functions
+    //
 
     var json_parse = function(data) {
         try {
@@ -47,10 +44,6 @@ QUEBECOIS = (function(window, $, undefined){
         }
         return result;
     }
-
-    var subscribe = function(channel, k) {
-        $.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + channel_token + '&target=' + channel, '', k);
-    };
 
     var make_id = function(n)
     {
@@ -64,8 +57,47 @@ QUEBECOIS = (function(window, $, undefined){
         return text;
     };
 
-    var get_history_events = function(f, clear_chat) {
-        $.get(PROXY + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + channel_token, '', function(data, textstatus, jqxhr) {
+
+    //
+    // Class ChatConnection
+    //
+
+    // channels: list of channels to subscribe
+    // msg_handler: callback for each message received (incl. scrollback)
+    // clear_chat: called just before messages start flowing (and again if
+    //   we lose our connection and start over from the beginning.)
+    var ChatConnection = function(channels, msg_handler, clear_chat) {
+        console.log("ChatConnection construction; this has uid ", this.uniqueId());
+        // XXX go will make us a fresh token, is that what we really want
+        this.connection_active = true;
+        this.go(channels, msg_handler, clear_chat);
+    };
+
+    // For debugging purposes
+    var _cc_id_ = 0;
+    ChatConnection.prototype.uniqueId = function() {
+        if (typeof this.__uniqueid == "undefined") {
+            this.__uniqueid = ++_cc_id_;
+        }
+        return this.__uniqueid;
+    };
+
+    ChatConnection.prototype.close_connection = function (){
+        this.connection_active = false;
+    };
+
+    ChatConnection.prototype.fresh_token = function() {
+        this.channel_token = make_id(32);
+        console.log("fresh channel token is ", this.channel_token, " on object with uid ", this.uniqueId());
+    };
+
+    ChatConnection.prototype.subscribe = function(channel, k) {
+        console.log("getting", PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel);
+        $.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel, '', k);
+    };
+
+    ChatConnection.prototype.get_history_events = function(f, clear_chat) {
+        $.get(PROXY + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token, '', function(data, textstatus, jqxhr) {
             var result = json_parse(data);
             // In case we're restarting, clear at the last possible moment before replacing the contents.
             clear_chat();
@@ -79,14 +111,18 @@ QUEBECOIS = (function(window, $, undefined){
         });
     };
 
-    var get_events = function(k, fatal) {
+    // CONTRACT: get_events promises never to directly recurse into k or fatal; it will only trampoline them.
+    ChatConnection.prototype.get_events = function(k, fatal) {
+        var self = this;
+        var request_channel_token = self.channel_token;
         var random_token = make_id(8);
         var domain = 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
         if (LOCALMODE) {
             var domain = 'http://' + LOCALMODE + '/';
         }
+
         $.ajax({
-            url: domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + channel_token,
+            url: domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + self.channel_token,
             dataType: 'text',
             xhr: function() {
                 QUEBECOIS.xhr = $.ajaxSettings.xhr();
@@ -97,8 +133,17 @@ QUEBECOIS = (function(window, $, undefined){
                 var result = json_parse(data);
                 console.log("events endpoint returned", result);
 
-                if (result.channel_token != channel_token) {
-                    console.log("Bad channel token, discarding stale return and cancelling further requests (Got: ", result.channel_token, ", expected:", channel_token, ")");
+                console.log(
+                    "self.channel_token = ", self.channel_token,
+                    " on conn with uid ", self.uniqueId(),
+                    " (request_channel_token = ", request_channel_token,
+                    ", result.channel_token = ", result.channel_token, ")");
+                if (request_channel_token != self.channel_token) {
+                    console.log("Bad request channel token, discarding stale return and cancelling further requests (Got: ", request_channel_token, ", expected:", self.channel_token, ")");
+                    return;
+                }
+                if (!self.connection_active) {
+                    console.log("Connection set to inactive, closing.");
                     return;
                 }
 
@@ -108,9 +153,7 @@ QUEBECOIS = (function(window, $, undefined){
                     return;
                 } else if (result.result == 'error') {
                     console.log("ERROR, BACKING OFF", result);
-                    setTimeout(function() {
-                        k([]);
-                    }, ERROR_BACKOFF);
+                    setTimeout($.proxy(k, undefined, []), ERROR_BACKOFF);
                     return;
                 }
 
@@ -121,37 +164,61 @@ QUEBECOIS = (function(window, $, undefined){
                 k(events);
             },
             error: function(jqxhr, textstatus, errorthrown) {
+                if (request_channel_token != self.channel_token) {
+                    console.log("Bad request channel token, discarding stale return and cancelling further requests (Got: ",
+                        request_channel_token, ", expected:", self.channel_token, ") (on error). Textstatus was:", textstatus, "; Error was:", errorthrown);
+                    return;
+                }
+                if (!self.connection_active) {
+                    console.log("Connection set to inactive, closing (on error). Textstatus was:", textstatus, "; Error was:", errorthrown);
+                    return;
+                }
+
                 console.log("events endpoint failed, backing off. Textstatus was:", textstatus, "; Error was:", errorthrown);
-                setTimeout(function() {
-                        k([]);
-                }, ERROR_BACKOFF)
+                setTimeout($.proxy(k, undefined, []), ERROR_BACKOFF)
             }
         });
     };
 
-    var each_event = function(f, fatal) {
-        get_events(function(events) {
+    ChatConnection.prototype.each_event = function(f, fatal) {
+        var self = this;
+        this.get_events(function(events) {
             events.map(f);
-            setTimeout(0, each_event(f, fatal));
+            self.each_event(f, fatal);
         }, fatal);
     };
 
-    var go = function(channel, f, clear_chat) {
-        fresh_token();
-        subscribe(channel, function() {
-            get_history_events(f, clear_chat);
-            each_event(function(e) {
+    ChatConnection.prototype.go = function(channels, f, clear_chat) {
+        this.fresh_token();
+        var self = this;
+        var done_subscribing = function() {
+            self.get_history_events(f, clear_chat);
+            self.each_event(function(e) {
                 if (!e.message) {
                     console.log("EVENT SANS MESSAGE", e);
                     return;
                 }
                 f(e);
-                /// XXX I think I actually don't need a lot of these setTimeouts, I'm safe if I'm inside a callback since those are called on the main loop anyway... only if there's a possible other codepath.
             }, function() {
-                setTimeout(0, go(channel, f, clear_chat));
+                self.go(channels, f, clear_chat);
             });
-        });
+        };
+
+        var subscribe_multiple = function(channels, k) {
+            if (channels.length == 0) {
+                k();
+            } else {
+                var ch = channels.shift();
+                self.subscribe(ch, function() { subscribe_multiple(channels, k); });
+            }
+        };
+        subscribe_multiple(channels.slice(), done_subscribing);  // slice without args performs clone
     };
+
+
+    //
+    // Connectionless chat operations
+    //
 
     var send = function(channel, username, message) {
         $.post(PROXY + 'send?key=' + MAGIC_KEY + '&target=' + channel + '&sender=' + username,
@@ -170,6 +237,11 @@ QUEBECOIS = (function(window, $, undefined){
             f(channels);
         });
     };
+
+
+    //
+    // HTML-swizzling helpers
+    //
 
     var abuse_mediawiki = function() {
         var username = $('#pt-userpage').text();
@@ -220,8 +292,13 @@ QUEBECOIS = (function(window, $, undefined){
         }
     };
 
+
+    //
+    // Export selected functions
+    //
+
     return {
-        go: go,
+        ChatConnection: ChatConnection,
         send: send,
         get_channels: get_channels,
         abuse_mediawiki: abuse_mediawiki,
