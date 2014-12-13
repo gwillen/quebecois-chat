@@ -6,6 +6,7 @@ import gevent
 import time
 import datetime
 import random
+from collections import deque
 
 from gevent import monkey, Timeout
 
@@ -78,6 +79,21 @@ app.config.from_pyfile('config.py')
 client = zulip.Client(email="quebecois-bot@rotq.net",
     api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
 
+# XXX I am depending on my code being only cooperatively threaded. I ... don't actually know if that's true.
+rx_connection_cache = deque()
+
+def get_rx_connection():
+    logging.debug("Getting RX connection with cache length %d", len(rx_connection_cache))
+    if len(rx_connection_cache) == 0:
+        logging.debug("Creating new RX connection")
+        return pika.BlockingConnection(pika_rx_params)
+    return rx_connection_cache.pop()
+
+# If something goes wrong and the connection is in an unknown state, just close it. Only release working connections.
+def release_rx_connection(c):
+    rx_connection_cache.append(c)
+    logging.debug("Releasing RX connection; cache length now %d", len(rx_connection_cache))
+
 def add_response_headers(headers={}):
     """This decorator adds the headers passed in to the response"""
     def decorator(f):
@@ -115,7 +131,7 @@ def subscribe_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
     try:
-        rx_conn = pika.BlockingConnection(pika_rx_params)
+        rx_conn = get_rx_connection()
         recv_channel = rx_conn.channel()
 
         channel_token = request.args.get('channel_token')
@@ -131,7 +147,8 @@ def subscribe():
             queue=queue_name,
             routing_key=target)
 
-        rx_conn.close()
+        recv_channel.close()
+        release_rx_connection(rx_conn)
 
         # XXX note that if our routing key contains # or * wildcards, they will apply in 
         #   getting fresh messages, but not in getting SB unless we do that ourselves. Also,
@@ -213,8 +230,8 @@ def events():
 
         try:
             yield ' ' * 4096  # Force old Chrome to flush things and populate xhr.responseText
-            logging.debug("Opening BlockingConnection with params %s (%s)", str(pika_rx_params), datetime.datetime.now().strftime("%I:%M:%S"))
-            rx_conn = pika.BlockingConnection(pika_rx_params)
+            logging.debug("XXX CACHE: Opening BlockingConnection with params %s (%s)", str(pika_rx_params), datetime.datetime.now().strftime("%I:%M:%S"))
+            rx_conn = get_rx_connection()
             logging.debug("Connection open, getting channel (%s)", datetime.datetime.now().strftime("%I:%M:%S"))
             recv_channel = rx_conn.channel()
             logging.debug("Channel is open")
@@ -236,15 +253,21 @@ def events():
                 # Our queue expired; give up and start over.
                 logging.error("Fatal, queue seems gone; starting over")
                 result = "fatal"
+            # Dump our connection in case it's gone bad; don't requeue it.
+            rx_conn.close()
+            rx_conn = None
             yield json.dumps({"result": result, "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         except Exception as e:
             logging.error("getting events failed: %s (exception's type is %s) (%s)", e, str(type(e)), datetime.datetime.now().strftime("%I:%M:%S"))
+            # Dump our connection in case it's gone bad; don't requeue it.
+            rx_conn.close()
+            rx_conn = None
             yield json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         finally:
             if recv_channel is not None:
                 recv_channel.cancel()
             if rx_conn is not None:
-                rx_conn.close()
+                release_rx_connection(rx_conn)
 
     return Response(generate())
 
@@ -260,6 +283,7 @@ def send_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def send():
     try:
+        # XXX we should use a cache here too maybe...
         tx_conn = pika.BlockingConnection(pika_tx_params)
         send_channel = tx_conn.channel()
 
