@@ -47,7 +47,7 @@ MAGIC_KEY = 'fhqwhgads'
 MONGO_URL = os.environ.get('MONGOHQ_URL')
 TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
-QUEUE_EXCHANGE = 'test'
+QUEUE_EXCHANGE = 'test'  # XXX
 
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
@@ -60,17 +60,13 @@ else:
 # Default of 0.25 seconds is too quick for my taste; give it 5 seconds.
 pika.adapters.BlockingConnection.SOCKET_CONNECT_TIMEOUT = 5
 
+pika_params = []
 if TX_QUEUE_URL and RX_QUEUE_URL:
-    pika_tx_params = pika.URLParameters(TX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3")
-    pika_rx_params = pika.URLParameters(RX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3")
+    pika_params.append(pika.URLParameters(RX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3"))
+    pika_params.append(pika.URLParameters(TX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3"))
 else:
-    pika_tx_params = pika.ConnectionParameters(host='localhost')
-    pika_rx_params = pika.ConnectionParameters(host='localhost')
-
-setup_conn = pika.BlockingConnection(pika_tx_params)
-setup_channel = setup_conn.channel()
-setup_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
-setup_conn.close()
+    pika_params.append(pika.ConnectionParameters(host='localhost'))
+    pika_params.append(pika.ConnectionParameters(host='localhost'))
 
 logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
@@ -80,19 +76,38 @@ client = zulip.Client(email="quebecois-bot@rotq.net",
     api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
 
 # XXX I am depending on my code being only cooperatively threaded. I ... don't actually know if that's true.
-rx_connection_cache = deque()
+channel_cache = [deque(), deque()]
 
-def get_rx_connection():
-    logging.debug("Getting RX connection with cache length %d", len(rx_connection_cache))
-    if len(rx_connection_cache) == 0:
-        logging.debug("Creating new RX connection")
-        return pika.BlockingConnection(pika_rx_params)
-    return rx_connection_cache.pop()
+RX_CHANNEL = 0
+TX_CHANNEL = 1
+def get_channel(chan_type=RX_CHANNEL):
+    logging.debug("Getting channel (of type %d) with cache length %d", chan_type, len(channel_cache[chan_type]))
+    if len(channel_cache[chan_type]) == 0:
+        logging.debug("Creating new connection (of type %d, at %s)", chan_type, datetime.datetime.now().strftime("%I:%M:%S"))
+        conn = pika.BlockingConnection(pika_params[chan_type])
+        logging.debug("Connection open, getting channel (of type %d, at %s)", chan_type, datetime.datetime.now().strftime("%I:%M:%S"))
+        return conn.channel()
+    return channel_cache[chan_type].pop()
 
-# If something goes wrong and the connection is in an unknown state, just close it. Only release working connections.
-def release_rx_connection(c):
-    rx_connection_cache.append(c)
-    logging.debug("Releasing RX connection; cache length now %d", len(rx_connection_cache))
+def release_channel(c, chan_type=RX_CHANNEL):
+    if c is None:
+        return
+    channel_cache[chan_type].append(c)
+    logging.debug("Released channel (of type %d); cache length now %d", chan_type, len(channel_cache[chan_type]))
+
+# If something goes wrong, our strategy is to discard the channel and the connection rather than trying to recover.
+def discard_channel(c, chan_type=RX_CHANNEL):
+    if c is None:
+        return
+    logging.debug("Destroying channel (of type %d)", chan_type)
+    try:
+        c.connection.close()
+    except:
+        pass
+
+setup_channel = get_channel()
+setup_channel.exchange_declare(exchange=QUEUE_EXCHANGE, type='topic') #XXX, durable=True)
+release_channel(setup_channel)
 
 def add_response_headers(headers={}):
     """This decorator adds the headers passed in to the response"""
@@ -131,8 +146,7 @@ def subscribe_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
     try:
-        rx_conn = get_rx_connection()
-        recv_channel = rx_conn.channel()
+        recv_channel = get_channel()
 
         channel_token = request.args.get('channel_token')
         target = request.args.get('target')
@@ -147,8 +161,8 @@ def subscribe():
             queue=queue_name,
             routing_key=target)
 
-        recv_channel.close()
-        release_rx_connection(rx_conn)
+        release_channel(recv_channel)
+        recv_channel = None
 
         # XXX note that if our routing key contains # or * wildcards, they will apply in 
         #   getting fresh messages, but not in getting SB unless we do that ourselves. Also,
@@ -162,6 +176,7 @@ def subscribe():
             w=1)  # This enables write acknowledgement which means we get a result object.
         return json.dumps({"result": "ok", "channel_token": channel_token, "mongo": result}, cls=MyEncoder)
     except Exception as e:
+        discard_channel(recv_channel)
         return json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
 
 @app.route('/channels', methods=["OPTIONS"])
@@ -187,6 +202,7 @@ def event_history_options():
 
 # XXX a good client needs to dedupe between the final history entries and the first /events entries based on the id field.
 # (how does this interact with the possibility that we may have multiple channels? Could we have dupes interspersed with non-dupes?)
+# (actually this isn't even enough, you can still miss messages sent before you subscribe and query history, and written to history afterwards)
 @app.route('/event_history', methods=["GET"])
 @require_key()
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -230,10 +246,8 @@ def events():
 
         try:
             yield ' ' * 4096  # Force old Chrome to flush things and populate xhr.responseText
-            logging.debug("XXX CACHE: Opening BlockingConnection with params %s (%s)", str(pika_rx_params), datetime.datetime.now().strftime("%I:%M:%S"))
-            rx_conn = get_rx_connection()
-            logging.debug("Connection open, getting channel (%s)", datetime.datetime.now().strftime("%I:%M:%S"))
-            recv_channel = rx_conn.channel()
+            logging.debug("XXX CACHE: Opening BlockingConnection (%s)", datetime.datetime.now().strftime("%I:%M:%S"))
+            recv_channel = get_channel()
             logging.debug("Channel is open")
 
             while body is None:
@@ -243,6 +257,9 @@ def events():
                     (method, properties, body) = next(recv_channel.consume(queue_name))
             # Got something!
             recv_channel.basic_ack(method.delivery_tag)
+            recv_channel.cancel()  # Cancels the consume() but does not close the channel
+            release_channel(recv_channel)
+            recv_channel = None
             logging.debug("... got body %s", body)
             # XXX zulip API could return multiple events, we only get one... simulate the zulip API
             yield json.dumps({"result": "ok", "channel_token": channel_token, "events": [{"message": json.loads(body)}]})
@@ -250,24 +267,16 @@ def events():
             logging.error("getting events failed with ChannelClosed: %s", e)
             result = "error"
             if e.args[0] == 404:
-                # Our queue expired; give up and start over.
+                # Our queue probably expired; give up and start over.
                 logging.error("Fatal, queue seems gone; starting over")
                 result = "fatal"
-            # Dump our connection in case it's gone bad; don't requeue it.
-            rx_conn.close()
-            rx_conn = None
             yield json.dumps({"result": result, "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         except Exception as e:
             logging.error("getting events failed: %s (exception's type is %s) (%s)", e, str(type(e)), datetime.datetime.now().strftime("%I:%M:%S"))
-            # Dump our connection in case it's gone bad; don't requeue it.
-            rx_conn.close()
-            rx_conn = None
             yield json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         finally:
-            if recv_channel is not None:
-                recv_channel.close()
-            if rx_conn is not None:
-                release_rx_connection(rx_conn)
+            # If everything's gone right, we safely discard None here.
+            discard_channel(recv_channel)
 
     return Response(generate())
 
@@ -283,9 +292,7 @@ def send_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def send():
     try:
-        # XXX we should use a cache here too maybe...
-        tx_conn = pika.BlockingConnection(pika_tx_params)
-        send_channel = tx_conn.channel()
+        send_channel = get_channel(TX_CHANNEL)
 
         target = request.args.get('target')
         sender = request.args.get('sender')
@@ -302,12 +309,15 @@ def send():
             send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
                 routing_key=target,
                 body=json.dumps(message, cls=MyEncoder))
+            release_channel(send_channel, TX_CHANNEL)
+            send_channel = None
             logging.debug("sent %s message %s", target, json.dumps(message, cls=MyEncoder))
         except Exception as e:
             logging.error("failed to publish: %s", str(e))
             return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
         finally:
-            tx_conn.close()
+            # If anything's gone wrong, we safely discard None here.
+            discard_channel(send_channel, TX_CHANNEL)
 
         mongo_result = db.channels.update(
             {"name": target},
