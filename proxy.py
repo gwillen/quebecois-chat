@@ -265,7 +265,7 @@ def events():
             yield json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
         finally:
             if recv_channel is not None:
-                recv_channel.cancel()
+                recv_channel.close()
             if rx_conn is not None:
                 release_rx_connection(rx_conn)
 
