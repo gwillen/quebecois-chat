@@ -2,11 +2,14 @@ if (!window.LOCALMODE) {
     LOCALMODE = false;
 }
 
-PROXY = 'http://scripts.x.rotq.net/';
+PROXY = 'http://scripts.rotq.net/';
 LONGPOLL_DOMAIN = 'x.rotq.net';
 if (LOCALMODE) {
-    PROXY = 'http://localhost.rotq.net:5000/';
+    LOCALPORT = '5000';
+    LONGPOLL_DOMAIN = 'localhost.rotq.net';
+    PROXY = 'http://scripts.localhost.rotq.net:' + LOCALPORT + '/';
 }
+
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
 CHATPANE_HEIGHT = '240px';
@@ -15,7 +18,6 @@ CHAT_EXTRAS_HEIGHT = '47px';
 ERROR_BACKOFF = 30 * 1000; // ms
 
 MAGIC_KEY = 'fhqwhgads';
-
 
 document.domain = 'rotq.net';
 
@@ -29,7 +31,6 @@ location.
         parms[parm[0]] = parm[1];
     });
 
-
 QUEBECOIS = (function(window, $, undefined){
     //
     // Minor helper functions
@@ -39,6 +40,7 @@ QUEBECOIS = (function(window, $, undefined){
         try {
             result = JSON.parse(data);
         } catch(e) {
+            // XXX most or all our logs should have timestamps. And it would be nice if there was some way to see in the log when we reestablished the link after dying (but probably without getting a log line every time we call /events again.)
             console.log("JSON parse error parsing '", data, "'; error was:", e);
             result = {"status": "error", "error": "JSON parse error: " + e};
         }
@@ -57,6 +59,10 @@ QUEBECOIS = (function(window, $, undefined){
         return text;
     };
 
+    var get_domain = function() {
+        var random_token = make_id(8);
+        return 'http://' + random_token + '.' + LONGPOLL_DOMAIN + (LOCALMODE ? ':'+LOCALPORT : '') + '/';
+    };
 
     //
     // Class ChatConnection
@@ -67,7 +73,6 @@ QUEBECOIS = (function(window, $, undefined){
     // clear_chat: called just before messages start flowing (and again if
     //   we lose our connection and start over from the beginning.)
     var ChatConnection = function(channels, msg_handler, clear_chat) {
-        console.log("ChatConnection construction; this has uid ", this.uniqueId());
         // XXX go will make us a fresh token, is that what we really want
         this.connection_active = true;
         this.go(channels, msg_handler, clear_chat);
@@ -91,18 +96,22 @@ QUEBECOIS = (function(window, $, undefined){
         console.log("fresh channel token is ", this.channel_token, " on object with uid ", this.uniqueId());
     };
 
+    // XXX: if subscribe or g_h_e or get_channels fails, we probably want to bail and restart the world rather than crashing as we do now.
+    // There are some weird potential failure modes right now -- subscribe fails, we somehow make it to ghe anyway, we get empty events and blow up on line 116 because result.events is undefined???
+    // If we manage to fail to create the queue, we survive anyway because we blow up trying to do /events and start all over. But if we failed, say, ghe but not subscribe, we could end up wedged in a half-cocked state.
     ChatConnection.prototype.subscribe = function(channel, k) {
-        console.log("getting", PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel);
-        $.get(PROXY + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel, '', k);
+        var domain = get_domain();
+        console.log("getting", domain + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel);
+        $.get(domain + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel, '', k);
     };
 
     ChatConnection.prototype.get_history_events = function(f, clear_chat) {
-        $.get(PROXY + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token, '', function(data, textstatus, jqxhr) {
+        $.get(get_domain() + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token, '', function(data, textstatus, jqxhr) {
             var result = json_parse(data);
             // In case we're restarting, clear at the last possible moment before replacing the contents.
             clear_chat();
             // XXX error checking
-            var events = result.events;
+            var events = result.events; // XXX undef
             events.map(function(message) {
                 // XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
                 // 'true' for 'is historical', which should be better documented
@@ -115,11 +124,7 @@ QUEBECOIS = (function(window, $, undefined){
     ChatConnection.prototype.get_events = function(k, fatal) {
         var self = this;
         var request_channel_token = self.channel_token;
-        var random_token = make_id(8);
-        var domain = 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
-        if (LOCALMODE) {
-            var domain = 'http://' + LOCALMODE + '/';
-        }
+        var domain = get_domain();
 
         $.ajax({
             url: domain + 'events?key=' + MAGIC_KEY + '&channel_token=' + self.channel_token,
@@ -221,7 +226,7 @@ QUEBECOIS = (function(window, $, undefined){
     //
 
     var send = function(channel, username, message) {
-        $.post(PROXY + 'send?key=' + MAGIC_KEY + '&target=' + channel + '&sender=' + username,
+        $.post(get_domain() + 'send?key=' + MAGIC_KEY + '&target=' + channel + '&sender=' + username,
             {"content": message},
             function(data, textstatus, jqxhr) {
                 var result = json_parse(data);
@@ -230,7 +235,7 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var get_channels = function(f) {
-        $.get(PROXY + 'channels?key=' + MAGIC_KEY, function(data, textstatus, jqxhr) {
+        $.get(get_domain() + 'channels?key=' + MAGIC_KEY, function(data, textstatus, jqxhr) {
             var result = json_parse(data);
             // XXX error checking
             channels = result.channels;
@@ -243,10 +248,19 @@ QUEBECOIS = (function(window, $, undefined){
     // HTML-swizzling helpers
     //
 
-    var abuse_mediawiki = function() {
-        var username = $('#pt-userpage').text();
-        var page_tag = $('body').attr('class').split(' ').filter(function(x) { return /^page-/.test(x) })[0];
-        var page = page_tag.split('-').slice(1).join('-');
+    var hijack_czar = function() {
+        var username = $('#whoami option:selected').text();
+        var activity = $('#whatamidoing').val();
+        $('#whoami').change(function(e) {
+            console.log("username changed to ", $('#whoami option:selected').text())
+            hijack_czar();
+        });
+        $('#whatamidoing').change(function(e) {
+            console.log("activity changed to ", $('#whatamidoing').val());
+            //e.stop(); // so we don't get it twice
+            hijack_czar();
+        });
+
         var wikidiv = $('#globalWrapper');
         wikidiv.css({
             'position': 'absolute',
@@ -254,17 +268,21 @@ QUEBECOIS = (function(window, $, undefined){
             'margin-top': '10px'
         });
         var body = $('body');
-        $('body').prepend($('<div id="chatpane">'));
         var chatpane = $('#chatpane');
+        if (chatpane.length == 0) {
+            chatpane = $('<div id="chatpane">');
+            $('body').prepend(chatpane);
+        }
+
         chatpane.css({
             'background-color': 'white',
             'height': CHATPANE_HEIGHT,
             'z-index': 1000,
             'width': '100%'
         });
-        chatpane.append($('<iframe src="' + PROXY + 'public/zuliptest.html?v=' + VERSION + '&user=' + username + '&page=' + page + '" id="zulipframe"></iframe>'));
-        var zulipframe = $('#zulipframe');
-        zulipframe.css({
+        chatpane.html('<iframe src="' + PROXY + 'static/chattest.html?v=' + VERSION + '&user=' + username + '&channel=' + activity + '" id="chatframe"></iframe>');
+        var chatframe = $('#chatframe');
+        chatframe.css({
             'width': '100%',
             'height': '100%',
             'border': '0px',
@@ -301,7 +319,7 @@ QUEBECOIS = (function(window, $, undefined){
         ChatConnection: ChatConnection,
         send: send,
         get_channels: get_channels,
-        abuse_mediawiki: abuse_mediawiki,
+        hijack_czar: hijack_czar,
         fixed_chatpane: fixed_chatpane,
         hide_chatpane: hide_chatpane
     }

@@ -77,7 +77,7 @@
         if (parms['channel']) {
             current_channel = parms['channel'];
         } else {
-            current_channel = 'wikichat';
+            current_channel = 'general_chat';
         }
 
         $('#channel_list').change(function(e) {
@@ -87,6 +87,9 @@
         });
 
         QUEBECOIS.get_channels(function(channels) {
+            if (channels.indexOf(current_channel) == -1) {
+                channels.push(current_channel);
+            }
             var channel_list = $('#channel_list');
             if (channels && channels.length > 0) {
                 channel_list.children(0).remove();

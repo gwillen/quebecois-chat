@@ -1,3 +1,6 @@
+DEBUG_QUEUE_FAST_EXPIRE = False
+DEBUG_CONNECTION_FAST_EXPIRE = False
+
 import sys
 import logging
 import os
@@ -48,6 +51,12 @@ MONGO_URL = os.environ.get('MONGOHQ_URL')
 TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
 QUEUE_EXCHANGE = 'test'  # XXX
+QUEUE_EXPIRES_MS = 1000 * 60 * 5  # 5 minutes
+if DEBUG_QUEUE_FAST_EXPIRE:
+    QUEUE_EXPIRES_MS = 1000 * 35  # 35 seconds
+CONNECTION_EXPIRES_S = 600
+if DEBUG_CONNECTION_FAST_EXPIRE:
+    CONNECTION_EXPIRES_S = 35
 
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
@@ -62,8 +71,8 @@ pika.adapters.BlockingConnection.SOCKET_CONNECT_TIMEOUT = 5
 
 pika_params = []
 if TX_QUEUE_URL and RX_QUEUE_URL:
-    pika_params.append(pika.URLParameters(RX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3"))
-    pika_params.append(pika.URLParameters(TX_QUEUE_URL + "?socket_timeout=5&retry_delay=1&connection_attempts=3"))
+    pika_params.append(pika.URLParameters(RX_QUEUE_URL + ("?retry_delay=1&connection_attempts=3&heartbeat_interval=%d" % CONNECTION_EXPIRES_S)))
+    pika_params.append(pika.URLParameters(TX_QUEUE_URL + ("?retry_delay=1&connection_attempts=3&heartbeat_interval=%d" % CONNECTION_EXPIRES_S)))
 else:
     pika_params.append(pika.ConnectionParameters(host='localhost'))
     pika_params.append(pika.ConnectionParameters(host='localhost'))
@@ -75,7 +84,6 @@ app.config.from_pyfile('config.py')
 client = zulip.Client(email="quebecois-bot@rotq.net",
     api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
 
-# XXX I am depending on my code being only cooperatively threaded. I ... don't actually know if that's true.
 channel_cache = [deque(), deque()]
 
 RX_CHANNEL = 0
@@ -145,6 +153,7 @@ def subscribe_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
+    recv_channel = None
     try:
         recv_channel = get_channel()
 
@@ -154,8 +163,8 @@ def subscribe():
         # XXX is there a way to get confirms/return values on these pika calls?
         recv_queue = recv_channel.queue_declare(
             queue=queue_name,
-            # Expire the queue after 5 minutes of disuse. (That means no calls to /subscribe or /events.)
-            arguments={"x-expires": 1000 * 60 * 5})
+            # Expire the queue after QUEUE_EXPIRES_MS of disuse. (That means no calls to /subscribe or /events.)
+            arguments={"x-expires": QUEUE_EXPIRES_MS})
         recv_channel.queue_bind(
             exchange=QUEUE_EXCHANGE,
             queue=queue_name,
