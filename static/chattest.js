@@ -248,18 +248,25 @@ QUEBECOIS = (function(window, $, undefined){
     // HTML-swizzling helpers
     //
 
+    var setup_complete = false;
+
     var hijack_czar = function() {
         var username = $('#whoami option:selected').text();
         var activity = $('#whatamidoing').val();
-        $('#whoami').change(function(e) {
-            console.log("username changed to ", $('#whoami option:selected').text())
-            hijack_czar();
-        });
-        $('#whatamidoing').change(function(e) {
-            console.log("activity changed to ", $('#whatamidoing').val());
-            //e.stop(); // so we don't get it twice
-            hijack_czar();
-        });
+
+        if (!setup_complete) {
+                setup_complete = true;
+
+            $('#whoami').change(function(e) {
+                console.log("username changed to ", $('#whoami option:selected').text())
+                hijack_czar();
+            });
+            $('#whatamidoing').change(function(e) {
+                console.log("activity changed to ", $('#whatamidoing').val());
+                //e.stop(); // so we don't get it twice
+                hijack_czar();
+            });
+        }
 
         var wikidiv = $('#globalWrapper');
         wikidiv.css({
