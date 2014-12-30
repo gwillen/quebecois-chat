@@ -19,17 +19,8 @@ ERROR_BACKOFF = 30 * 1000; // ms
 
 MAGIC_KEY = 'fhqwhgads';
 
-document.domain = 'rotq.net';
-
-parms = {};
-location.
-    search.
-    substr(1).
-    split('&').
-    map(function(x) {
-        var parm = x.split('=');
-        parms[parm[0]] = parm[1];
-    });
+// Keep last two domain components. This is an imperfect heuristic but it will usually work.
+document.domain = document.domain.split(".").slice(-2).join(".")
 
 QUEBECOIS = (function(window, $, undefined){
     //
