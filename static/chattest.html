@@ -27,8 +27,12 @@
 
 <body style='margin: 0px'>
     <form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px' name='message_form'>
-        <div id='messages' style='width: 100%; overflow: auto'></div>
         <table width='100%'><tr>
+            <td><div id='messages' style='width: 100%; overflow: auto'></div></td>
+            <td style="width:200px; vertical-align:top"><div id='userlist' style='width: 100%; overflow: auto'></div></td>
+        </tr></table>
+
+        <table id="chatextras" width='100%'><tr>
             <td style="white-space: nowrap;">
                 <input type='text' name='username' id='username' placeholder='username'>
                 <select disabled name='channel_list' id='channel_list'>
@@ -51,6 +55,10 @@
         </tr></table>
     </form>
     <script type="text/javascript">
+        var now = function() {
+            return Date.now() / 1000;
+        };
+
         var formatTime = function(unixTimestamp) {
             var dt = new Date(unixTimestamp * 1000);
 
@@ -104,7 +112,7 @@
         });
 
         // XXX: slightly ugh.
-        $('#messages').css({'height': '' + ($('body').height() - $('table').height()) + 'px'});
+        $('#messages').css({'height': '' + ($('body').height() - $('table#chatextras').height()) + 'px'});
 
         $('#fixed_checkbox').click(function() {
             QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);
@@ -127,37 +135,117 @@
         }
         update_lag_meter();
 
+        var update_userlist = function(presences) {
+            var userlist = $('#userlist');
+            userlist.text('');
+            $.each(Object.keys(presences).sort(), function(idx, k) {
+                var presence = presences[k];
+                var age = now() - presence.timestamp;
+                var text = '';
+                text += "[" + presence.presence_token + "] ";
+                text += presence.sender + " ";
+                text += age.toFixed(1);
+                var user_div = $('<div>');
+                user_div.text(text);
+                userlist.append(user_div);
+            });
+        }
+
+        var presences = {};
+        var update_userlist_periodically = function() {
+            update_userlist(presences);
+            setTimeout(update_userlist_periodically, 1000);
+        };
+        update_userlist_periodically();
+
         var start_your_engines = function() {
             var messages_div = $('#messages');
             if (window.chat_connection) {
                 window.chat_connection.close_connection();
             }
-            window.chat_connection = new QUEBECOIS.ChatConnection([current_channel], function(e, old) {
-                //XXX console.log("GOT EVENT", e);
-                var sender = e.message.from.user;
-                var content = e.message.content;
-                var message = '';
-                message += formatTime(e.message.timestamp) + " ";
-                message += '<' + sender + '> ' + content;
+            window.chat_connection = new QUEBECOIS.ChatConnection([current_channel], username_box.val(), function(e) {
+                console.log("GOT EVENT", e);
+                if (e.type == "message") {
+                    var sender = e.message.from.user;
+                    var content = e.message.content;
+                    var message = '';
+                    message += formatTime(e.message.timestamp) + " ";
+                    message += '<' + sender + '> ' + content;
 
-                var msg_div = $('<div>');
-                if (old) {
-                    msg_div.css({"background-color": "lightgrey"});
-                }
-                var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
-                msg_div.text(message);
-                messages_div.append(msg_div);
-                if (at_bottom) {
-                    messages_div.scrollTop(messages_div[0].scrollHeight);
+                    var msg_div = $('<div>');
+                    if (e.historical) {
+                        msg_div.css({"background-color": "lightgrey"});
+                    }
+                    var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
+                    msg_div.text(message);
+                    messages_div.append(msg_div);
+                    if (at_bottom) {
+                        messages_div.scrollTop(messages_div[0].scrollHeight);
+                    }
+                } else if (e.type == "presence") {
+                    var presence = e.presence;
+                    var sender = presence.sender;
+                    var age = now() - presence.timestamp;
+                    console.log("PRESENCE: ", sender, age, presence);
+                    presences[presence.presence_token] = presence;
+                    update_userlist(presences);
+                } else {
+                    console.log("GOT UNKNOWN EVENT", e);
                 }
             }, function() {
                 // If something goes really wrong, clear it all so we can start over.
                 messages_div.text('');
+                presences = {};
+                update_userlist(presences);
             });
             console.log("HTML Created new chatconnection with uid ", window.chat_connection.uniqueId());
         };
 
         start_your_engines();
+
+        function vis_change() {
+            var vis = document.webkitVisibilityState;
+            console.log("VIS: ", vis);
+            if (vis == "visible") {
+                // At least in chrome, this always fires before the focus event, so we'll end up in the right state.
+                window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
+            } else {
+                window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.HIDDEN);
+            }
+        }
+        document.addEventListener("webkitvisibilitychange", vis_change, false);
+
+        $(window.top).blur(function() {
+            console.log("BLUR");
+            // At least in chrome, this always fires before the VIS:hidden event, so we'll end up in the right state.
+            window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
+        });
+
+        $(window.top).focus(function() {
+            console.log("FOCUS");
+            window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.FOCUSED);
+            window.chat_connection.reset_active_timer();
+        });
+
+        // Easiest way to avoid 'this'-binding issue using a method as a callback.
+        var conn = window.chat_connection;
+        var ping = function() { conn.reset_active_timer(); };
+
+        $(window.top).mousemove(ping);
+        $(window.top).keypress(ping);
+        $(window.top).keydown(ping);
+        $(window.top).keyup(ping);
+
+        // Technically it's most correct to do this _after_ we install the handlers, although in JS there's probably no race anyway.
+        if (window.top.document.hasFocus()) {
+            window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.FOCUSED);
+            window.chat_connection.reset_active_timer();
+            console.log("document has focus");
+        } else if (document.webkitVisibilityState) {
+            window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
+        } else {
+            window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.HIDDEN);
+        }
     </script>
 </body>
 

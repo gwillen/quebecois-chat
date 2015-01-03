@@ -8,6 +8,7 @@ import json
 import gevent
 import time
 import datetime
+import calendar
 import random
 from collections import deque
 
@@ -23,6 +24,10 @@ import pymongo
 import pika
 import zulip
 
+def datetime_to_epochtime(dt):
+    # These datetimes coming from Mongo are in UTC so we use timegm.
+    return calendar.timegm(dt.timetuple()) + dt.microsecond * 1e-6
+
 import json
 from bson.objectid import ObjectId
 from bson.timestamp import Timestamp
@@ -32,6 +37,8 @@ class MyEncoder(json.JSONEncoder):
             return str(o)
         elif isinstance(o, Timestamp):
             return str(o)
+        elif isinstance(o, datetime.datetime):
+            return datetime_to_epochtime(o)
         else:
             return json.JSONEncoder.default(self, o)
 
@@ -57,6 +64,8 @@ if DEBUG_QUEUE_FAST_EXPIRE:
 CONNECTION_EXPIRES_S = 600
 if DEBUG_CONNECTION_FAST_EXPIRE:
     CONNECTION_EXPIRES_S = 35
+# NB: Mongo remembers this, and it only has effect the VERY FIRST TIME we touch the index and create it.
+PRESENCE_EXPIRES_S = 600
 
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
@@ -154,10 +163,10 @@ def subscribe_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def subscribe():
     recv_channel = None
+    channel_token = request.args.get('channel_token')
     try:
         recv_channel = get_channel()
 
-        channel_token = request.args.get('channel_token')
         target = request.args.get('target')
         queue_name = "channel_token_" + channel_token
         # XXX is there a way to get confirms/return values on these pika calls?
@@ -271,7 +280,7 @@ def events():
             recv_channel = None
             logging.debug("... got body %s", body)
             # XXX zulip API could return multiple events, we only get one... simulate the zulip API
-            yield json.dumps({"result": "ok", "channel_token": channel_token, "events": [{"message": json.loads(body)}]})
+            yield json.dumps({"result": "ok", "channel_token": channel_token, "events": [json.loads(body)]})
         except pika.exceptions.ChannelClosed as e:
             logging.error("getting events failed with ChannelClosed: %s", e)
             result = "error"
@@ -313,14 +322,16 @@ def send():
             "timestamp": time.time(),
             "content": content }
 
+        event = {"type": "message", "message": message }
+
         logging.debug("sending with routing key %s", target)
         try:
             send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
                 routing_key=target,
-                body=json.dumps(message, cls=MyEncoder))
+                body=json.dumps(event, cls=MyEncoder))
             release_channel(send_channel, TX_CHANNEL)
             send_channel = None
-            logging.debug("sent %s message %s", target, json.dumps(message, cls=MyEncoder))
+            logging.debug("sent %s message %s", target, json.dumps(event, cls=MyEncoder))
         except Exception as e:
             logging.error("failed to publish: %s", str(e))
             return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
@@ -334,6 +345,67 @@ def send():
             upsert=True,
             w=1)  # This enables write acknowledgement which means we get a result object.
         return json.dumps({"result": "ok", "mongo": mongo_result}, cls=MyEncoder)
+    except Exception as e:
+        return json.dumps({"result": "error", "error": str(e)})
+
+@app.route('/update_presence', methods=["OPTIONS"])
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def update_presence_options():
+    return ''
+
+@app.route('/update_presence', methods=["GET"])
+@require_key()
+@add_response_headers({'Access-Control-Allow-Origin': '*'})
+@add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
+def update_presence():
+    try:
+        send_channel = get_channel(TX_CHANNEL)
+
+        presence_token = request.args.get('presence_token')
+
+        target = request.args.get('target')
+        sender = request.args.get('sender')
+
+        state = request.args.get('state')
+        last_activity = request.args.get('last_activity')
+        typing = request.args.get('typing')
+        entered_text = request.args.get('entered_text')
+
+        presence = {
+            "presence_token": presence_token,
+            "target": target,
+            "sender": sender,
+            "state": state,
+            "last_activity": last_activity,
+            "typing": typing,
+            "entered_text": entered_text,
+            "timestamp": datetime.datetime.utcnow() }
+
+        event = {"type": "presence", "presence": presence}
+
+        logging.debug("presence with routing key %s", target)
+        try:
+            send_channel.basic_publish(exchange=QUEUE_EXCHANGE,
+                routing_key=target,
+                body=json.dumps(event, cls=MyEncoder))
+            release_channel(send_channel, TX_CHANNEL)
+            send_channel = None
+            logging.debug("sent %s presence %s", target, json.dumps(event, cls=MyEncoder))
+        except Exception as e:
+            logging.error("failed to publish: %s", str(e))
+            return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+        finally:
+            # If anything's gone wrong, we safely discard None here.
+            discard_channel(send_channel, TX_CHANNEL)
+
+        db.presences.ensure_index([("timestamp", pymongo.ASCENDING)], expireAfterSeconds=PRESENCE_EXPIRES_S)
+        result = db.presences.update(
+            { "presence_token": presence_token },
+            presence,
+            upsert=True,
+            w=1)  # This enables write acknowledgement which means we get a result object.
+        return json.dumps({"result": "ok", "presence_token": presence_token, "mongo": result}, cls=MyEncoder)
     except Exception as e:
         return json.dumps({"result": "error", "error": str(e)})
 

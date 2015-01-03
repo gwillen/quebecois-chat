@@ -55,17 +55,43 @@ QUEBECOIS = (function(window, $, undefined){
         return 'http://' + random_token + '.' + LONGPOLL_DOMAIN + (LOCALMODE ? ':'+LOCALPORT : '') + '/';
     };
 
+    var now = function() {
+        return Date.now() / 1000;
+    };
+
+    var TYPING_TIMEOUT = 5;
+    var ACTIVE_TIMEOUT = 30;
+    var PRESENCE_UPDATE_INTERVAL_MS = 30 * 1000;
+
+    var PresenceStateEnum = {
+        DISCONNECTED: -1,
+        HIDDEN: 0,
+        VISIBLE: 1,
+        FOCUSED: 2
+    };
+
     //
     // Class ChatConnection
     //
 
-    // channels: list of channels to subscribe
+    // channels: list of channels to subscribe (presence will only be applied to first; this is hacky)
+    // username: username for presence purposes
     // msg_handler: callback for each message received (incl. scrollback)
     // clear_chat: called just before messages start flowing (and again if
     //   we lose our connection and start over from the beginning.)
-    var ChatConnection = function(channels, msg_handler, clear_chat) {
-        // XXX go will make us a fresh token, is that what we really want
+    var ChatConnection = function(channels, username, msg_handler, clear_chat) {
+        // XXX go will make us a fresh channel_token, is that what we really want
         this.connection_active = true;
+        this.presence = {
+            target: channels[0],
+            sender: username,
+            presence_token: make_id(8),
+            state: undefined,
+            last_activity: 0,
+            last_typing: 0,
+            entered_text: false,
+        };
+        this.last_presence_update = now();
         this.go(channels, msg_handler, clear_chat);
     };
 
@@ -78,8 +104,54 @@ QUEBECOIS = (function(window, $, undefined){
         return this.__uniqueid;
     };
 
+    // Our presence info works as follows:
+    // - state is "HIDDEN" or "VISIBLE" or "FOCUSED"
+    // - typing is true or false, only applies in FOCUSED state
+    // - idle is how many seconds since last typing or mousemove, only applies in FOCUSED state
+
+    ChatConnection.prototype.update_presence = function() {
+        var presence_data = this.presence;
+        presence_data.typing = (now() - presence_data.last_typing) < TYPING_TIMEOUT;
+        var args = {
+            key: MAGIC_KEY,
+        }
+        $.extend(args, presence_data);
+        $.get(get_domain() + 'update_presence?' + $.param(args), function(data, textstatus, jqxhr) {
+            //var result = json_parse(data);
+            console.log("did presence");
+        });
+    };
+
+    ChatConnection.prototype.set_presence_state = function(state) {
+        var oldstate = this.presence.state;
+        this.presence.state = state;
+        if (state != oldstate) {
+            this.update_presence();
+        }
+    };
+
+    ChatConnection.prototype.reset_active_timer = function() {
+        var oldact = this.presence.last_activity;
+        this.presence.last_activity = now();
+        if (this.presence.last_activity - oldact > ACTIVE_TIMEOUT) {
+            this.update_presence();
+        }
+    };
+
+    // XXX this bit still needs work.
+    // In theory we need to force updates every TYPING_TIMEOUT intervals while the user is typing, and potentially another one TYPING_TIMEOUT after they stop, depending on how we want to handle the client side.
+    ChatConnection.prototype.reset_typing_timer = function() {
+        var oldtyping = this.presence.last_typing;
+        this.presence.last_typing = now();
+        if (this.presence.last_typing - oldtyping > TYPING_TIMEOUT) {
+            this.update_presence();
+        }
+    }
+
     ChatConnection.prototype.close_connection = function (){
         this.connection_active = false;
+        this.presence_state = PresenceStateEnum.DISCONNECTED;
+        this.update_presence;
     };
 
     ChatConnection.prototype.fresh_token = function() {
@@ -105,8 +177,7 @@ QUEBECOIS = (function(window, $, undefined){
             var events = result.events; // XXX undef
             events.map(function(message) {
                 // XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
-                // 'true' for 'is historical', which should be better documented
-                f({"message": message}, true);
+                f({"type": "message", "message": message, "historical": true});
             });
         });
     };
@@ -184,16 +255,22 @@ QUEBECOIS = (function(window, $, undefined){
         }, fatal);
     };
 
+    ChatConnection.prototype.keep_presence_updated = function() {
+        if (this.presence.sender == "Nobody") {
+            // Hax
+            return;
+        }
+        var self = this;
+        this.update_presence();
+        setTimeout(function() { self.keep_presence_updated(); }, PRESENCE_UPDATE_INTERVAL_MS);
+    };
+
     ChatConnection.prototype.go = function(channels, f, clear_chat) {
         this.fresh_token();
         var self = this;
         var done_subscribing = function() {
             self.get_history_events(f, clear_chat);
             self.each_event(function(e) {
-                if (!e.message) {
-                    console.log("EVENT SANS MESSAGE", e);
-                    return;
-                }
                 f(e);
             }, function() {
                 self.go(channels, f, clear_chat);
@@ -209,6 +286,8 @@ QUEBECOIS = (function(window, $, undefined){
             }
         };
         subscribe_multiple(channels.slice(), done_subscribing);  // slice without args performs clone
+        // Put this off until the caller has had a chance to initialize presence based on window visibility and focus.
+        setTimeout(function() { self.keep_presence_updated() }, 0);
     };
 
 
@@ -315,10 +394,11 @@ QUEBECOIS = (function(window, $, undefined){
 
     return {
         ChatConnection: ChatConnection,
+        PresenceStateEnum: PresenceStateEnum,
         send: send,
         get_channels: get_channels,
         hijack_czar: hijack_czar,
         fixed_chatpane: fixed_chatpane,
-        hide_chatpane: hide_chatpane
+        hide_chatpane: hide_chatpane,
     }
 })(this, jQuery);
