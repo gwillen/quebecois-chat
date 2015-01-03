@@ -13,7 +13,7 @@ if (LOCALMODE) {
 BOT_EMAIL = 'quebecois-bot@rotq.net';
 BOT_NAME = "The Rage of the Quebecois bot";
 CHATPANE_HEIGHT = '240px';
-CHAT_EXTRAS_HEIGHT = '47px';
+CHAT_EXTRAS_HEIGHT = '21px';
 //CHATPANE_HEIGHT = '20px';
 ERROR_BACKOFF = 30 * 1000; // ms
 
@@ -377,11 +377,11 @@ QUEBECOIS = (function(window, $, undefined){
 
     var hide_chatpane = function(flag) {
         if (flag) {
-            $('#messages').css({'display': 'none'});
+            $('#chatmain').css({'display': 'none'});
             window.parent.$('#chatpane').css({'height': CHAT_EXTRAS_HEIGHT});
             window.parent.$('#globalWrapper').css({'top': CHAT_EXTRAS_HEIGHT});
         } else {
-            $('#messages').css({'display': 'block'});
+            $('#chatmain').css({'display': 'block'});
             window.parent.$('#chatpane').css({'height': CHATPANE_HEIGHT});
             window.parent.$('#globalWrapper').css({'top': CHATPANE_HEIGHT});
         }

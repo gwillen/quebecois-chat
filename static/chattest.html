@@ -27,12 +27,12 @@
 
 <body style='margin: 0px'>
     <form action='#' onsubmit='send_message(); return false;' style='margin-bottom: 0px' name='message_form'>
-        <table width='100%'><tr>
-            <td><div id='messages' style='width: 100%; overflow: auto'></div></td>
-            <td style="width:200px; vertical-align:top"><div id='userlist' style='width: 100%; overflow: auto'></div></td>
+        <table id="chatmain" style='border-collapse: collapse' width='100%'><tr>
+            <td style='padding: 0px; vertical-align: top'><div id='messages' style='width: 100%; overflow: auto'></div></td>
+            <td style="padding: 0px; width:200px; vertical-align:top"><div id='userlist' style='width: 100%; overflow: auto'></div></td>
         </tr></table>
 
-        <table id="chatextras" width='100%'><tr>
+        <table style='border-collapse: collapse' id="chatextras" width='100%'><tr>
             <td style="white-space: nowrap;">
                 <input type='text' name='username' id='username' placeholder='username'>
                 <select disabled name='channel_list' id='channel_list'>
@@ -55,6 +55,8 @@
         </tr></table>
     </form>
     <script type="text/javascript">
+        var MAX_QUEUE_LATENCY = 5;  // Oldest message we can see, in seconds, before we give up and restart
+
         var now = function() {
             return Date.now() / 1000;
         };
@@ -113,6 +115,7 @@
 
         // XXX: slightly ugh.
         $('#messages').css({'height': '' + ($('body').height() - $('table#chatextras').height()) + 'px'});
+        $('#userlist').css({'height': '' + ($('body').height() - $('table#chatextras').height()) + 'px'});
 
         $('#fixed_checkbox').click(function() {
             QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);
@@ -186,6 +189,11 @@
                     var presence = e.presence;
                     var sender = presence.sender;
                     var age = now() - presence.timestamp;
+                    if (age > MAX_QUEUE_LATENCY) {
+                        // We're getting messages way after they're sent -- our queue is full of stale stuff. To avoid getting further and further behind, dump it.
+                        console.log("QUEUE LATENCY TOO HIGH (", age, "), bailing out");
+                        start_your_engines();
+                    }
                     console.log("PRESENCE: ", sender, age, presence);
                     presences[presence.presence_token] = presence;
                     update_userlist(presences);
