@@ -1,1 +1,1 @@
-web: gunicorn --debug --log-level debug --log-file=- -k gevent -w 1 proxy:app
+web: gunicorn -k gevent -w 10 proxy:app
