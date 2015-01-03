@@ -57,7 +57,7 @@ MAGIC_KEY = 'fhqwhgads'
 MONGO_URL = os.environ.get('MONGOHQ_URL')
 TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
-QUEUE_EXCHANGE = 'test'  # XXX
+QUEUE_EXCHANGE = 'qchat'
 QUEUE_EXPIRES_MS = 1000 * 60 * 5  # 5 minutes
 if DEBUG_QUEUE_FAST_EXPIRE:
     QUEUE_EXPIRES_MS = 1000 * 35  # 35 seconds
