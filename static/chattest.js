@@ -118,7 +118,7 @@ QUEBECOIS = (function(window, $, undefined){
         $.extend(args, presence_data);
         $.get(get_domain() + 'update_presence?' + $.param(args), function(data, textstatus, jqxhr) {
             //var result = json_parse(data);
-            console.log("did presence");
+            console.log("did presence update; data is", presence_data);
         });
     };
 
@@ -255,14 +255,28 @@ QUEBECOIS = (function(window, $, undefined){
         }, fatal);
     };
 
-    ChatConnection.prototype.keep_presence_updated = function() {
+    // There's no compelling reason for this function to care about channel_token, _except_ that a 
+    //   change to it implies that we've reset our connection, and are about to start a new 
+    //   presence update loop, so we should terminate the old one. This is a hack.
+    ChatConnection.prototype.keep_presence_updated = function(channel_token) {
+        if (!this.connection_active) {
+            console.log("keep_presence_updated: bailing because connection inactive");
+            return;
+        }
+        // This is a hack; see above.
+        if (this.channel_token != channel_token) {
+            console.log("keep_presence_updated: bailing because channel_token changed (old:", channel_token, "; new:", this.channel_token, ")");
+            return;
+        }
         if (this.presence.sender == "Nobody") {
             // Hax
+            console.log("keep_presence_updated: bailing because username is Nobody");
             return;
         }
         var self = this;
+        console.log("doing presence update; cht is", channel_token, "; pt is", this.presence.presence_token, "; data is", this.presence);
         this.update_presence();
-        setTimeout(function() { self.keep_presence_updated(); }, PRESENCE_UPDATE_INTERVAL_MS);
+        setTimeout(function() { self.keep_presence_updated(channel_token); }, PRESENCE_UPDATE_INTERVAL_MS);
     };
 
     ChatConnection.prototype.go = function(channels, f, clear_chat) {
@@ -287,7 +301,7 @@ QUEBECOIS = (function(window, $, undefined){
         };
         subscribe_multiple(channels.slice(), done_subscribing);  // slice without args performs clone
         // Put this off until the caller has had a chance to initialize presence based on window visibility and focus.
-        setTimeout(function() { self.keep_presence_updated() }, 0);
+        setTimeout(function() { self.keep_presence_updated(self.channel_token) }, 0);
     };
 
 
