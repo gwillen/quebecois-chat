@@ -259,6 +259,7 @@ QUEBECOIS = (function(window, $, undefined){
     //   change to it implies that we've reset our connection, and are about to start a new 
     //   presence update loop, so we should terminate the old one. This is a hack.
     ChatConnection.prototype.keep_presence_updated = function(channel_token) {
+        console.log("keep_presence_updated; cht is", channel_token, "; pt is", this.presence.presence_token, "; data is", this.presence, "; conn is", this);
         if (!this.connection_active) {
             console.log("keep_presence_updated: bailing because connection inactive");
             return;
@@ -274,7 +275,6 @@ QUEBECOIS = (function(window, $, undefined){
             return;
         }
         var self = this;
-        console.log("doing presence update; cht is", channel_token, "; pt is", this.presence.presence_token, "; data is", this.presence);
         this.update_presence();
         setTimeout(function() { self.keep_presence_updated(channel_token); }, PRESENCE_UPDATE_INTERVAL_MS);
     };

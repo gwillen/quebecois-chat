@@ -55,7 +55,7 @@
         </tr></table>
     </form>
     <script type="text/javascript">
-        var MAX_QUEUE_LATENCY = 5;  // Oldest message we can see, in seconds, before we give up and restart
+        var MAX_QUEUE_LATENCY = 60;  // Oldest message we can see, in seconds, before we give up and restart
 
         var now = function() {
             return Date.now() / 1000;
