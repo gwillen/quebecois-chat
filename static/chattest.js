@@ -110,7 +110,13 @@ QUEBECOIS = (function(window, $, undefined){
     // - idle is how many seconds since last typing or mousemove, only applies in FOCUSED state
 
     ChatConnection.prototype.update_presence = function() {
+        if (this.presence.sender == "Nobody") {
+            // Hax
+            console.log("update_presence: bailing because username is Nobody");
+            return;
+        }
         var presence_data = this.presence;
+
         presence_data.typing = (now() - presence_data.last_typing) < TYPING_TIMEOUT;
         var args = {
             key: MAGIC_KEY,

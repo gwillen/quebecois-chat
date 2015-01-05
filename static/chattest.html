@@ -211,16 +211,16 @@
 
         start_your_engines();
 
-        var conn = window.chat_connection;
+        var win = window;
 
         function vis_change() {
             var vis = document.webkitVisibilityState;
             console.log("VIS: ", vis);
             if (vis == "visible") {
                 // At least in chrome, this always fires before the focus event, so we'll end up in the right state.
-                conn.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
+                win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
             } else {
-                conn.set_presence_state(QUEBECOIS.PresenceStateEnum.HIDDEN);
+                win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.HIDDEN);
             }
         }
         document.addEventListener("webkitvisibilitychange", vis_change, false);
@@ -228,16 +228,16 @@
         $(window.top).blur(function() {
             console.log("BLUR");
             // At least in chrome, this always fires before the VIS:hidden event, so we'll end up in the right state.
-            conn.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
+            win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
         });
 
         $(window.top).focus(function() {
             console.log("FOCUS");
-            conn.set_presence_state(QUEBECOIS.PresenceStateEnum.FOCUSED);
-            conn.reset_active_timer();
+            win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.FOCUSED);
+            win.chat_connection.reset_active_timer();
         });
 
-        var ping = function() { conn.reset_active_timer(); };
+        var ping = function() { win.chat_connection.reset_active_timer(); };
 
         $(window.top).mousemove(ping);
         $(window.top).keypress(ping);
