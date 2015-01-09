@@ -231,6 +231,7 @@
             win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
         });
 
+        //XXX really either window being focused should do? BUt it'd be annoying if clicking between them caused two events to go out.
         $(window.top).focus(function() {
             console.log("FOCUS");
             win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.FOCUSED);
