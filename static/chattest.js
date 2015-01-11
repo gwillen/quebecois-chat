@@ -195,6 +195,15 @@ QUEBECOIS = (function(window, $, undefined){
             clear_chat();
             // XXX error checking
             var events = result.events; // XXX undef
+            if (events.length == 0) {
+                events = [{
+                    from: {
+                        user: 'SYSTEM'
+                    },
+                    content: "Nobody's said anything here yet!",
+                    timestamp: 0
+                }];
+            }
             events.map(function(message) {
                 // XXX this is a hack because our history stores 'messages' and not 'events', which maybe should 
                 f({"type": "message", "message": message, "historical": true});
