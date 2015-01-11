@@ -56,6 +56,7 @@
     </form>
     <script type="text/javascript">
         var MAX_QUEUE_LATENCY = 60;  // Oldest message we can see, in seconds, before we give up and restart
+        var MAX_VIS_USER_AGE_S = 125;  // After 2+ minutes of no reports, hide users from the userlist
 
         var now = function() {
             return Date.now() / 1000;
@@ -92,6 +93,10 @@
 
         $('#channel_list').change(function(e) {
             console.log("value is: ", e.target.value);
+            win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.DISCONNECTED);
+            window.chat_connection.close_connection();
+            console.log("deleting chat connection");
+            window.chat_connection = undefined;
             current_channel = e.target.value;
             start_your_engines();
         });
@@ -141,16 +146,28 @@
         var update_userlist = function(presences) {
             var userlist = $('#userlist');
             userlist.text('');
+            var seen_users = {};
             $.each(Object.keys(presences).sort(), function(idx, k) {
                 var presence = presences[k];
-                var age = now() - presence.timestamp;
-                var text = '';
-                text += "[" + presence.presence_token + "] ";
-                text += presence.sender + " ";
-                text += age.toFixed(1);
-                var user_div = $('<div>');
-                user_div.text(text);
-                userlist.append(user_div);
+                presence.age = now() - presence.timestamp;
+                seen_users[presence.sender] = seen_users[presence.sender] || [];
+                seen_users[presence.sender].push(presence);
+            });
+            $.each(Object.keys(seen_users).sort(), function(idx, user) {
+                var min_age = 1/0;
+                $.each(seen_users[user], function(idx, presence) {
+                    min_age = Math.min(min_age, presence.age);
+                });
+
+                if (min_age < MAX_VIS_USER_AGE_S) {
+                    var text = '';
+                    text += user + " (";
+                    text += min_age.toFixed(1);
+                    text += ")";
+                    var user_div = $('<div>');
+                    user_div.text(text);
+                    userlist.append(user_div);
+                }
             });
         }
 
@@ -196,6 +213,10 @@
                     }
                     console.log("PRESENCE: ", sender, age, presence);
                     presences[presence.presence_token] = presence;
+                    if (presence.state == QUEBECOIS.PresenceStateEnum.DISCONNECTED) {
+                        console.log("USER DISCONNECTED: ", sender, presence);
+                        delete presences[presence.presence_token];
+                    }
                     update_userlist(presences);
                 } else {
                     console.log("GOT UNKNOWN EVENT", e);
@@ -225,25 +246,57 @@
         }
         document.addEventListener("webkitvisibilitychange", vis_change, false);
 
-        $(window.top).blur(function() {
-            console.log("BLUR");
-            // At least in chrome, this always fires before the VIS:hidden event, so we'll end up in the right state.
-            win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.VISIBLE);
-        });
+        var session_token = {}
+        window.top.rage_session_token = session_token;
 
-        //XXX really either window being focused should do? BUt it'd be annoying if clicking between them caused two events to go out.
-        $(window.top).focus(function() {
-            console.log("FOCUS");
-            win.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.FOCUSED);
-            win.chat_connection.reset_active_timer();
-        });
+        var adjust_presence = function(event) {
+            var data = event.data;
+            console.log("ADJUST", data, event);
 
-        var ping = function() { win.chat_connection.reset_active_timer(); };
+            // I'm not sure what value 'window' will have here, but top is always top.
+            if (session_token != window.top.rage_session_token) {
+                console.log("stale handler, bailing out!", data, event);
+                $(this).off(data.event, adjust_presence);
+                return;
+            }
 
-        $(window.top).mousemove(ping);
-        $(window.top).keypress(ping);
-        $(window.top).keydown(ping);
-        $(window.top).keyup(ping);
+            if (data.state) {
+                win.chat_connection.set_presence_state(data.state);
+            }
+            if (data.active) {
+                win.chat_connection.reset_active_timer();
+            }
+            if (data.typing) {
+                win.chat_connection.reset_typing_timer();
+            }
+        }
+
+        $(window.top).on("blur", {
+            event: "blur",
+            state: QUEBECOIS.PresenceStateEnum.VISIBLE
+        }, adjust_presence);
+
+        $(window).on("blur", {
+            event: "blur",
+            state: QUEBECOIS.PresenceStateEnum.VISIBLE
+        }, adjust_presence);
+
+        $(window.top).on("focus", {
+            event: "focus",
+            state: QUEBECOIS.PresenceStateEnum.FOCUSED,
+            active: true
+        }, adjust_presence);
+
+        $(window).on("focus", {
+            event: "focus",
+            state: QUEBECOIS.PresenceStateEnum.FOCUSED,
+            active: true
+        }, adjust_presence);
+
+        $(window.top).on("mousemove", { active: true }, adjust_presence);
+        $(window.top).on("keypress", { active: true }, adjust_presence);
+
+        $('#message_out').on("keypress", { active: true, typing: true }, adjust_presence);
 
         // Technically it's most correct to do this _after_ we install the handlers, although in JS there's probably no race anyway.
         if (window.top.document.hasFocus()) {
@@ -255,6 +308,8 @@
         } else {
             window.chat_connection.set_presence_state(QUEBECOIS.PresenceStateEnum.HIDDEN);
         }
+
+        // There used to be some onunload/unbeforeunload stuff here, but it never really worked right so now it's gone.
     </script>
 </body>
 

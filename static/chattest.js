@@ -117,11 +117,14 @@ QUEBECOIS = (function(window, $, undefined){
         }
         var presence_data = this.presence;
 
+        console.log(" now is ", now(), "; lt is ", presence_data.last_typing, "; diff is ", (now() - presence_data.last_typing), "; typing is ", (now() - presence_data.last_typing) < TYPING_TIMEOUT);
         presence_data.typing = (now() - presence_data.last_typing) < TYPING_TIMEOUT;
+        presence_data.entered_text = $('#message_out').val().length > 0; // This is hacky abstraction-violation.
         var args = {
             key: MAGIC_KEY,
         }
         $.extend(args, presence_data);
+        console.log("updating with", presence_data);
         $.get(get_domain() + 'update_presence?' + $.param(args), function(data, textstatus, jqxhr) {
             //var result = json_parse(data);
             console.log("did presence update; data is", presence_data);
@@ -344,8 +347,9 @@ QUEBECOIS = (function(window, $, undefined){
         var username = $('#whoami option:selected').text();
         var activity = $('#whatamidoing').val();
 
+        // Only do this bit once
         if (!setup_complete) {
-                setup_complete = true;
+            setup_complete = true;
 
             $('#whoami').change(function(e) {
                 console.log("username changed to ", $('#whoami option:selected').text())
@@ -377,8 +381,18 @@ QUEBECOIS = (function(window, $, undefined){
             'z-index': 1000,
             'width': '100%'
         });
-        chatpane.html('<iframe src="' + PROXY + 'static/chattest.html?v=' + VERSION + '&user=' + username + '&channel=' + activity + '" id="chatframe"></iframe>');
+
+        var chatsrc = PROXY + 'static/chattest.html?v=' + VERSION + '&user=' + username + '&channel=' + activity;
+        console.log("Setting up chat frame with src = ", chatsrc);
         var chatframe = $('#chatframe');
+        if (!chatframe.length) {
+            chatpane.html('<iframe src="' + chatsrc + '" id="chatframe"></iframe>');
+            chatframe = $('#chatframe');
+        } else {
+            // This will cause the frame to reload.
+            chatframe.attr('src', chatsrc);
+        }
+
         chatframe.css({
             'width': '100%',
             'height': '100%',
