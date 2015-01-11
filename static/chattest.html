@@ -23,6 +23,20 @@
             msg_box.val('');
         }
     </script>
+    <style>
+        .color_good {
+            color: white;
+            background-color: green;
+        }
+        .color_okay {
+            color: black;
+            background-color: yellow;
+        }
+        .color_bad {
+            color: white;
+            background-color: red;
+        }
+    </style>
 </head>
 
 <body style='margin: 0px; height: 100%'>
@@ -43,7 +57,6 @@
                 <input type='text' name='message_out' id='message_out' placeholder='message' style='width: 100%'>
             </td>
             <td id='freshness' style="white-space: nowrap;">
-                Lag: NaN
             </td>
             <td style="white-space: nowrap;">
                 <input type='submit' name='submit' value='Send'>
@@ -138,7 +151,14 @@
                 QUEBECOIS.last_poll_time = now;
             }
             var lag = now - QUEBECOIS.last_poll_time;
-            $('#freshness').text("Lag: " + Math.round(lag) + " s");
+            $('#freshness').text("Last update: " + Math.round(lag) + " s");
+            if (lag <= 6) {
+                $('#freshness').attr('class', 'color_good');
+            } else if (lag <= 45) {
+                $('#freshness').attr('class', 'color_okay');
+            } else {
+                $('#freshness').attr('class', 'color_bad');
+            }
             setTimeout(update_lag_meter, 1000);
         }
         update_lag_meter();
