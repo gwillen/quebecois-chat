@@ -81,7 +81,12 @@ QUEBECOIS = (function(window, $, undefined){
     //   we lose our connection and start over from the beginning.)
     var ChatConnection = function(channels, username, msg_handler, clear_chat) {
         // XXX go will make us a fresh channel_token, is that what we really want
+
+        // 'Active' means we're trying to use this connection and is cleared when we replace it.
+        // 'Working' means this connection is actually connected, and is cleared when we are in an error condition.
         this.connection_active = true;
+        this.connection_working = true;
+
         this.presence = {
             target: channels[0],
             sender: username,
@@ -113,6 +118,11 @@ QUEBECOIS = (function(window, $, undefined){
         if (this.presence.sender == "Nobody") {
             // Hax
             console.log("update_presence: bailing because username is Nobody");
+            return;
+        }
+        // This prevents us from updating our presence in the channel if we're not getting events from it for whatever reason
+        if (!this.connection_active || !this.connection_working) {
+            console.log("update_presence: bailing because the connection is bad");
             return;
         }
         var presence_data = this.presence;
@@ -159,8 +169,9 @@ QUEBECOIS = (function(window, $, undefined){
 
     ChatConnection.prototype.close_connection = function (){
         this.connection_active = false;
+        this.connection_working = false;
         this.presence_state = PresenceStateEnum.DISCONNECTED;
-        this.update_presence;
+        this.update_presence();
     };
 
     ChatConnection.prototype.fresh_token = function() {
@@ -205,6 +216,8 @@ QUEBECOIS = (function(window, $, undefined){
                 return QUEBECOIS.xhr;
             },
             success: function(data, textstatus, jqxhr) {
+                self.connection_working = true;
+
                 QUEBECOIS.last_poll_time = (new Date().getTime())/1000;
                 var result = json_parse(data);
                 console.log("events endpoint returned", result);
@@ -219,16 +232,19 @@ QUEBECOIS = (function(window, $, undefined){
                     return;
                 }
                 if (!self.connection_active) {
+                    self.connection_working = false;
                     console.log("Connection set to inactive, closing.");
                     return;
                 }
 
                 if (result.result == 'fatal') {
                     console.log("Fatal error, restarting everything");
+                    self.connection_working = false;
                     fatal();
                     return;
                 } else if (result.result == 'error') {
                     console.log("ERROR, BACKING OFF", result);
+                    self.connection_working = false;
                     setTimeout($.proxy(k, undefined, []), ERROR_BACKOFF);
                     return;
                 }
@@ -240,6 +256,8 @@ QUEBECOIS = (function(window, $, undefined){
                 k(events);
             },
             error: function(jqxhr, textstatus, errorthrown) {
+                self.connection_working = false;
+
                 if (request_channel_token != self.channel_token) {
                     console.log("Bad request channel token, discarding stale return and cancelling further requests (Got: ",
                         request_channel_token, ", expected:", self.channel_token, ") (on error). Textstatus was:", textstatus, "; Error was:", errorthrown);
