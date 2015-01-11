@@ -22,6 +22,18 @@ MAGIC_KEY = 'fhqwhgads';
 // Keep last two domain components. This is an imperfect heuristic but it will usually work.
 document.domain = document.domain.split(".").slice(-2).join(".")
 
+parms = {};
+location.
+    search.
+    substr(1).
+    split('&').
+    map(function(x) {
+        var parm = x.split('=');
+        parms[decodeURIComponent(parm[0])] = decodeURIComponent(parm[1]);
+    });
+
+var version = parms['v'] || window.top.config.script_version_magic;
+
 QUEBECOIS = (function(window, $, undefined){
     //
     // Minor helper functions
@@ -409,7 +421,7 @@ QUEBECOIS = (function(window, $, undefined){
             'width': '100%'
         });
 
-        var chatsrc = PROXY + 'static/chattest.html?v=' + VERSION + '&user=' + username + '&channel=' + activity;
+        var chatsrc = PROXY + 'static/chattest.html?v=' + version + '&user=' + username + '&channel=' + activity;
         console.log("Setting up chat frame with src = ", chatsrc);
         var chatframe = $('#chatframe');
         if (!chatframe.length) {
