@@ -2,25 +2,27 @@ if (!window.LOCALMODE) {
     LOCALMODE = false;
 }
 
-PROXY = 'http://scripts.rotq.net/';
-LONGPOLL_DOMAIN = 'x.rotq.net';
-if (LOCALMODE) {
-    LOCALPORT = '5000';
-    LONGPOLL_DOMAIN = 'localhost.rotq.net';
-    PROXY = 'http://scripts.localhost.rotq.net:' + LOCALPORT + '/';
+var config;
+
+// I can't decide if this is great or terrible. Try each suffix of the domain in turn until we find the GCD.
+while (config == undefined) {
+    try {
+        config = window.top.config;
+    } catch(e) {
+        document.domain = document.domain.split(".").slice(1).join(".")
+    }
 }
 
-BOT_EMAIL = 'quebecois-bot@rotq.net';
-BOT_NAME = "The Rage of the Quebecois bot";
+PROXY = config.chat_static_url;
+LONGPOLL_DOMAIN = config.chat_longpoll_domain;
+LONGPOLL_WORKAROUND_DISABLED = config.chat_longpoll_workaround_disabled;
+
 CHATPANE_HEIGHT = '240px';
 CHAT_EXTRAS_HEIGHT = '21px';
 //CHATPANE_HEIGHT = '20px';
 ERROR_BACKOFF = 30 * 1000; // ms
 
 MAGIC_KEY = 'fhqwhgads';
-
-// Keep last two domain components. This is an imperfect heuristic but it will usually work.
-document.domain = document.domain.split(".").slice(-2).join(".")
 
 parms = {};
 location.
@@ -63,8 +65,12 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var get_domain = function() {
-        var random_token = make_id(8);
-        return 'http://' + random_token + '.' + LONGPOLL_DOMAIN + (LOCALMODE ? ':'+LOCALPORT : '') + '/';
+        if (LONGPOLL_WORKAROUND_DISABLED) {
+            return 'http://' + LONGPOLL_DOMAIN + '/';
+        } else {
+            var random_token = make_id(8);
+            return 'http://' + random_token + '.' + LONGPOLL_DOMAIN + '/';
+        }
     };
 
     var now = function() {

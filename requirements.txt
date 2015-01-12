@@ -11,4 +11,3 @@ simplejson==3.3.2
 wsgiref==0.1.2
 pymongo==2.6.3
 pika==0.9.14
-https://www.zulip.com/dist/api/python-zulip_0.2.3.tar.gz

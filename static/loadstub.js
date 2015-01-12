@@ -10,10 +10,14 @@ location.
         parms[decodeURIComponent(parm[0])] = decodeURIComponent(parm[1]);
     });
 
-PROXY = 'http://scripts.x.rotq.net/';
-//PROXY = 'http://localhost.rotq.net:5000/';
+PROXY = window.config.chat_static_url;
 
-document.domain = 'rotq.net';
+if (window.config.document_domain) {
+    document.domain = window.config.document_domain;
+} else {
+    // Keep last two domain components. This is an imperfect heuristic but it will usually work.
+    document.domain = document.domain.split(".").slice(-2).join(".")
+}
 
 var version = parms['v'] || window.top.config.script_version_magic;
 

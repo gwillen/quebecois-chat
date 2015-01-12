@@ -90,8 +90,6 @@ logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
-client = zulip.Client(email="quebecois-bot@rotq.net",
-    api_key="BfsqBUyxSfMzmKyguETDS3xbG7eNbRGv")
 
 channel_cache = [deque(), deque()]
 
