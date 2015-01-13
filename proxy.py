@@ -65,7 +65,6 @@ CONNECTION_EXPIRES_S = 600
 if DEBUG_CONNECTION_FAST_EXPIRE:
     CONNECTION_EXPIRES_S = 35
 # NB: Mongo remembers this, and it only has effect the VERY FIRST TIME we touch the index and create it.
-PRESENCE_EXPIRES_S = 600
 
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
@@ -180,17 +179,7 @@ def subscribe():
         release_channel(recv_channel)
         recv_channel = None
 
-        # XXX note that if our routing key contains # or * wildcards, they will apply in 
-        #   getting fresh messages, but not in getting SB unless we do that ourselves. Also,
-        #   the sub entry in the db is gonna get leaked unless we make it expire with a TTL,
-        #   in which case we have to refresh it periodically to keep it alive (and keep it
-        #   in sync with the expiry on the queue or maybe get in trouble?)
-        result = db.subscriptions.update(
-            {"channel_token": channel_token},
-            {"$addToSet": {"targets": target}},
-            upsert=True,
-            w=1)  # This enables write acknowledgement which means we get a result object.
-        return json.dumps({"result": "ok", "channel_token": channel_token, "mongo": result}, cls=MyEncoder)
+        return json.dumps({"result": "ok", "channel_token": channel_token}, cls=MyEncoder)
     except Exception as e:
         discard_channel(recv_channel)
         return json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
@@ -225,10 +214,9 @@ def event_history_options():
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def event_history():
     channel_token = request.args.get('channel_token')
-    subscriptions = list(db.subscriptions.find({"channel_token": channel_token}, {"targets": 1, "_id": 0}))
-    if len(subscriptions) != 1:
-        return json.dumps({"result": "error", "channel_token": channel_token, "error": "bad subscriptions list: " + str(subscriptions)});
-    targets = subscriptions[0]["targets"]
+    targets = request.args.getlist('channels')
+    if len(targets) < 1:
+        return json.dumps({"result": "error", "channel_token": channel_token, "error": "bad targets list: " + str(targets)});
     history_chans = list(db.channels.find({"name": {"$in": targets}}))
 
     history = []
@@ -236,7 +224,7 @@ def event_history():
         for message in channel["messages"]:
             message["to"] = {"channel": channel["name"]}
             history.append(message)
-    history.sort(key=lambda message: message.get("timestamp", -1))  # XXX some of our timestamps are missing
+    history.sort(key=lambda message: message.get("timestamp", -1))
 
     return json.dumps({"result": "ok", "channel_token": channel_token, "events": list(history)}, cls=MyEncoder)
 

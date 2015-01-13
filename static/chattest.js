@@ -206,8 +206,8 @@ QUEBECOIS = (function(window, $, undefined){
         $.get(domain + 'subscribe?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&target=' + channel, '', k);
     };
 
-    ChatConnection.prototype.get_history_events = function(f, clear_chat) {
-        $.get(get_domain() + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token, '', function(data, textstatus, jqxhr) {
+    ChatConnection.prototype.get_history_events = function(channels, f, clear_chat) {
+        $.get(get_domain() + 'event_history?key=' + MAGIC_KEY + '&channel_token=' + this.channel_token + '&' + $.param({'channels': channels}, true), '', function(data, textstatus, jqxhr) {
             var result = json_parse(data);
             // In case we're restarting, clear at the last possible moment before replacing the contents.
             clear_chat();
@@ -337,7 +337,7 @@ QUEBECOIS = (function(window, $, undefined){
         this.fresh_token();
         var self = this;
         var done_subscribing = function() {
-            self.get_history_events(f, clear_chat);
+            self.get_history_events(channels, f, clear_chat);
             self.each_event(function(e) {
                 f(e);
             }, function() {
