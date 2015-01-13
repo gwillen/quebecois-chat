@@ -10,7 +10,7 @@ location.
         parms[decodeURIComponent(parm[0])] = decodeURIComponent(parm[1]);
     });
 
-PROXY = window.config.chat_static_url;
+PROXY = 'http://scripts.' + window.config.chat_domain + '/';
 
 if (window.config.document_domain) {
     document.domain = window.config.document_domain;
@@ -19,7 +19,7 @@ if (window.config.document_domain) {
     document.domain = document.domain.split(".").slice(-2).join(".")
 }
 
-var version = parms['v'] || window.top.config.script_version_magic;
+var version = parms['v'] || window.top.config.chat_cachebuster;
 
 $(document).ready(function (){
     $.getScript(PROXY + 'static/chatdebug.js?v=' + version);

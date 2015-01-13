@@ -13,8 +13,8 @@ while (config == undefined) {
     }
 }
 
-PROXY = config.chat_static_url;
-LONGPOLL_DOMAIN = config.chat_longpoll_domain;
+PROXY = 'http://scripts.' + config.chat_domain + '/';
+LONGPOLL_DOMAIN = config.chat_domain;
 LONGPOLL_WORKAROUND_DISABLED = config.chat_longpoll_workaround_disabled;
 
 CHATPANE_HEIGHT = '240px';
@@ -34,7 +34,7 @@ location.
         parms[decodeURIComponent(parm[0])] = decodeURIComponent(parm[1]);
     });
 
-var version = parms['v'] || window.top.config.script_version_magic;
+var version = parms['v'] || window.top.config.chat_cachebuster;
 
 QUEBECOIS = (function(window, $, undefined){
     //
