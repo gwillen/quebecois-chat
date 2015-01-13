@@ -54,7 +54,7 @@ def rand_id(bits):
 logging.basicConfig(filename='quebecois.proxy.log', level=logging.DEBUG)
 
 MAGIC_KEY = 'fhqwhgads'
-MONGO_URL = os.environ.get('MONGOHQ_URL')
+MONGO_URL = os.environ.get('MONGOHQ_URL') or os.environ.get('MONGOLAB_URI')
 TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
 QUEUE_EXCHANGE = 'qchat'
