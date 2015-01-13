@@ -65,6 +65,7 @@ CONNECTION_EXPIRES_S = 600
 if DEBUG_CONNECTION_FAST_EXPIRE:
     CONNECTION_EXPIRES_S = 35
 # NB: Mongo remembers this, and it only has effect the VERY FIRST TIME we touch the index and create it.
+PRESENCE_EXPIRES_S = 600
 
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)
