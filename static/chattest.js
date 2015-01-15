@@ -378,12 +378,20 @@ QUEBECOIS = (function(window, $, undefined){
     };
 
     var get_channels = function(f) {
-        $.get(get_domain() + 'channels?key=' + MAGIC_KEY, function(data, textstatus, jqxhr) {
-            var result = json_parse(data);
-            // XXX error checking
-            channels = result.channels;
-            f(channels);
+        $.ajax(get_domain() + 'channels?key=' + MAGIC_KEY, {
+            success: function(data, textstatus, jqxhr) {
+                try {
+                    var result = json_parse(data);
+                    f(result.channels);
+                } catch(e) {
+                    f(undefined);
+                }
+            },
+            error: function(jqxhr, textstatus, errorthrown) {
+                f(undefined);
+            }
         });
+
     };
 
 

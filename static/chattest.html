@@ -113,22 +113,81 @@
             start_your_engines();
         });
 
-        QUEBECOIS.get_channels(function(channels) {
-            if (channels.indexOf(current_channel) == -1) {
-                channels.push(current_channel);
+        var all_channels = [];
+
+        // XXX: This digs kind of grotesquely into Czar internals. Also it's a copy-paste from czar.js and should be refactored.
+        var filter_channels = function(channels) {
+            var doc = window.top.document;
+            var hidden_puzzles = [];
+            var selected = window.top.GetSelectedTags();
+
+            for (var node=doc.getElementById("items").firstChild;
+                 node != null; node=node.nextSibling) {
+                if (node.className == "deleted") {
+                    hidden_puzzles.push(node.children[1].value);
+                    continue;
+                }
+
+                if (window.top.TagsMatch(selected,
+                                         doc.getElementById(node.name + ".tags").value) ^
+                    !selected.invert) {
+                        hidden_puzzles.push(node.children[1].value);
+                }
             }
+
+            var shown_channels = [];
+            for (var i = 0; i < channels.length; ++i) {
+                if (hidden_puzzles.indexOf(channels[i]) == -1) {
+                    shown_channels.push(channels[i]);
+                }
+            }
+
+            return shown_channels;
+        };
+
+        var redisplay_channel_list = function() {
             var channel_list = $('#channel_list');
-            if (channels && channels.length > 0) {
-                channel_list.children(0).remove();
-                channels.map(function(ch) {
-                    channel_list.append($('<option>' + ch + '</option>'));
-                });
-                channel_list.val(current_channel);
-                channel_list.prop("disabled", false);
+            var show_channels = filter_channels(all_channels);
+
+            channel_list.children(0).remove();
+            show_channels.map(function(ch) {
+                channel_list.append($('<option>' + ch + '</option>'));
+            });
+            channel_list.val(current_channel);
+            channel_list.prop("disabled", false);
+        };
+        window.top.$('#tags').on('change', 'input[type=checkbox]', redisplay_channel_list);
+
+        // Always sort these channels first.
+        var magic_channels = ['general_chat', 'General Chat'];
+
+        var channel_comparator = function(a, b) {
+            if (magic_channels.indexOf(a) > -1 && magic_channels.indexOf(b) > -1) {
+                return a.localeCompare(b);
+            } else if (magic_channels.indexOf(a) > -1) {
+                return -1;
+            } else if (magic_channels.indexOf(b) > -1) {
+                return 1;
             } else {
-                console.log("FUCK XXX"); // XXX
+                return a.localeCompare(b);
             }
-        });
+        };
+
+        var refresh_channel_list = function() {
+            QUEBECOIS.get_channels(function(channels) {
+                if (channels && channels.length > 0) {
+                    if (channels.indexOf(current_channel) == -1) {
+                        channels.push(current_channel);
+                    }
+                    all_channels = channels.sort(channel_comparator);
+                    redisplay_channel_list();
+                } else {
+                    console.log("Failed to retrieve channels. :-( Retrying in 30s.");
+                    setTimeout(refresh_channel_list, 30 * 1000);
+                }
+            });
+        };
+        refresh_channel_list();
 
         // XXX: slightly ugh.
         $('#messages').css({'height': '' + ($('body').height() - $('table#chatextras').height()) + 'px'});
