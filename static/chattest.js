@@ -410,6 +410,10 @@ QUEBECOIS = (function(window, $, undefined){
             setup_complete = true;
 
             $('#whoami').change(function(e) {
+                if ($('#whoami').val() == "__MISSINGNO__") {
+                    // This is a magic value that signifies adding a new user. Don't run with it.
+                    return;
+                }
                 console.log("username changed to ", $('#whoami option:selected').text())
                 hijack_czar();
             });
