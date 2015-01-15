@@ -203,7 +203,7 @@
                 window.chat_connection.close_connection();
             }
             window.chat_connection = new QUEBECOIS.ChatConnection([current_channel], username_box.val(), function(e) {
-                console.log("GOT EVENT", e);
+                if (!e.historical) { console.log("GOT EVENT", e); }
                 if (e.type == "message") {
                     var sender = e.message.from.user;
                     var content = e.message.content;
@@ -270,7 +270,7 @@
 
         var adjust_presence = function(event) {
             var data = event.data;
-            console.log("ADJUST", data, event);
+            //console.log("ADJUST", data, event);
 
             // I'm not sure what value 'window' will have here, but top is always top.
             if (session_token != window.top.rage_session_token) {
