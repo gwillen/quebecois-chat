@@ -2,6 +2,7 @@ DEBUG_QUEUE_FAST_EXPIRE = False
 DEBUG_CONNECTION_FAST_EXPIRE = False
 
 import sys
+import traceback
 import logging
 import os
 import json
@@ -46,6 +47,12 @@ def rand_id(bits):
     for i in range(0, bits / 4):
         result += random.choice("0123456789abcdef")
     return result
+
+def exception_data(exc_info = None):
+    if exc_info is None:
+        exc_info = sys.exc_info();
+    formatted = sys.format_exception(*exc_info)
+    return {'exc_info': str(exc_info), 'formatted': formatted}
 
 # XXX should have some handling of presence/idle, bidirectional heartbeats
 
@@ -182,7 +189,7 @@ def subscribe():
         return json.dumps({"result": "ok", "channel_token": channel_token}, cls=MyEncoder)
     except Exception as e:
         discard_channel(recv_channel)
-        return json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
+        return json.dumps({"result": "error", "channel_token": channel_token, "error": exception_data()}, cls=MyEncoder)
 
 @app.route('/channels', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -274,10 +281,10 @@ def events():
                 # Our queue probably expired; give up and start over.
                 logging.error("Fatal, queue seems gone; starting over")
                 result = "fatal"
-            yield json.dumps({"result": result, "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
+            yield json.dumps({"result": result, "channel_token": channel_token, "error": exception_data()}, cls=MyEncoder)
         except Exception as e:
             logging.error("getting events failed: %s (exception's type is %s) (%s)", e, str(type(e)), datetime.datetime.now().strftime("%I:%M:%S"))
-            yield json.dumps({"result": "error", "channel_token": channel_token, "error": str(e)}, cls=MyEncoder)
+            yield json.dumps({"result": "error", "channel_token": channel_token, "error": exception_data()}, cls=MyEncoder)
         finally:
             # If everything's gone right, we safely discard None here.
             discard_channel(recv_channel)
@@ -319,8 +326,8 @@ def send():
             send_channel = None
             logging.debug("sent %s message %s", target, json.dumps(event, cls=MyEncoder))
         except Exception as e:
-            logging.error("failed to publish: %s", str(e))
-            return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+            logging.error("failed to publish: %s", exception_data())
+            return json.dumps({"result": "error", "error": exception_data()}, cls=MyEncoder)
         finally:
             # If anything's gone wrong, we safely discard None here.
             discard_channel(send_channel, TX_CHANNEL)
@@ -332,7 +339,7 @@ def send():
             w=1)  # This enables write acknowledgement which means we get a result object.
         return json.dumps({"result": "ok", "mongo": mongo_result}, cls=MyEncoder)
     except Exception as e:
-        return json.dumps({"result": "error", "error": str(e)})
+        return json.dumps({"result": "error", "error": exception_data()})
 
 @app.route('/update_presence', methods=["OPTIONS"])
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
@@ -379,8 +386,8 @@ def update_presence():
             send_channel = None
             logging.debug("sent %s presence %s", target, json.dumps(event, cls=MyEncoder))
         except Exception as e:
-            logging.error("failed to publish: %s", str(e))
-            return json.dumps({"result": "error", "error": str(e)}, cls=MyEncoder)
+            logging.error("failed to publish: %s", exception_data())
+            return json.dumps({"result": "error", "error": exception_data()}, cls=MyEncoder)
         finally:
             # If anything's gone wrong, we safely discard None here.
             discard_channel(send_channel, TX_CHANNEL)
@@ -393,7 +400,7 @@ def update_presence():
             w=1)  # This enables write acknowledgement which means we get a result object.
         return json.dumps({"result": "ok", "presence_token": presence_token, "mongo": result}, cls=MyEncoder)
     except Exception as e:
-        return json.dumps({"result": "error", "error": str(e)})
+        return json.dumps({"result": "error", "error": exception_data()})
 
 # If we're run directly and not through gunicorn
 if __name__ == '__main__':
