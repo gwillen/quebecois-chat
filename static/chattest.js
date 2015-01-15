@@ -1,16 +1,21 @@
-if (!window.LOCALMODE) {
-    LOCALMODE = false;
-}
-
 var config;
 
 // I can't decide if this is great or terrible. Try each suffix of the domain in turn until we find the GCD.
-while (config == undefined) {
+
+while (config == undefined && document.domain.indexOf(".") > -1) {
+    console.log("trying document.domain =", document.domain);
     try {
         config = window.top.config;
-    } catch(e) {
-        document.domain = document.domain.split(".").slice(1).join(".")
-    }
+        // This is required because Safari, in its infinite wisdom, does not throw an exception here.
+        if (config) {
+            break;
+        }
+    } catch(e) {}
+    document.domain = document.domain.split(".").slice(1).join(".");
+}
+
+if (!config) {
+    console.log("FAILED TO LOCATE CONFIG");
 }
 
 PROXY = 'http://scripts.' + config.chat_domain + '/';

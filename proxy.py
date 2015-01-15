@@ -22,7 +22,6 @@ from flask import Flask, request, make_response, Response
 
 import pymongo
 import pika
-import zulip
 
 def datetime_to_epochtime(dt):
     # These datetimes coming from Mongo are in UTC so we use timegm.

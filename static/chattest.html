@@ -12,7 +12,6 @@
                 var parm = x.split('=');
                 parms[decodeURIComponent(parm[0])] = decodeURIComponent(parm[1]);
             });
-        document.write('<script type="text/javascript" src="chatdebug.js?v=' + parms['v'] + '"><' + '/script>');
         document.write('<script type="text/javascript" src="chattest.js?v=' + parms['v'] + '"><' + '/script>');
 
         function send_message() {
