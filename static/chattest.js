@@ -52,7 +52,7 @@ QUEBECOIS = (function(window, $, undefined){
         } catch(e) {
             // XXX most or all our logs should have timestamps. And it would be nice if there was some way to see in the log when we reestablished the link after dying (but probably without getting a log line every time we call /events again.)
             console.log("JSON parse error parsing '", data, "'; error was:", e);
-            result = {"status": "error", "error": "JSON parse error: " + e};
+            result = {"result": "error", "error": "JSON parse error: " + e};
         }
         return result;
     }
