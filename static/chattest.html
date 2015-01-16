@@ -274,7 +274,7 @@
                     if (e.historical) {
                         msg_div.css({"background-color": "lightgrey"});
                     }
-                    var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() == messages_div.outerHeight()
+                    var at_bottom = messages_div[0].scrollHeight - messages_div.scrollTop() <= messages_div.outerHeight() + 1
                     msg_div.text(message);
                     messages_div.append(msg_div);
                     if (at_bottom) {
