@@ -202,7 +202,8 @@ def channels_options():
 @add_response_headers({'Access-Control-Allow-Origin': '*'})
 @add_response_headers({'Access-Control-Allow-Headers': 'X-Requested-With'})
 def channels():
-    channels = list(db.channels.find({}, {"name": 1, "_id": 0}))
+    channels = list(db.channels.find({}, {"name": 1, "hidden": 1, "_id": 0}))
+    channels = filter(lambda x: not x.get("hidden", False), channels)
     channels = map(lambda x: x["name"], channels)
     return json.dumps({"result": "ok", "channels": channels}, cls=MyEncoder)
 
