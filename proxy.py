@@ -23,6 +23,7 @@ from flask import Flask, request, make_response, Response
 
 import pymongo
 import pika
+from slackclient import SlackClient
 
 def datetime_to_epochtime(dt):
     # These datetimes coming from Mongo are in UTC so we use timegm.
@@ -60,6 +61,7 @@ def exception_data(exc_info = None):
 logging.basicConfig(filename='quebecois.proxy.log', level=logging.DEBUG)
 
 MAGIC_KEY = 'fhqwhgads'
+SLACK_TOKEN = "xoxp-14901027889-17649065479-17648648177-ccd9ce4b5a"  # User 'ragebot' at ireproof.slack.com -- NOT a bot account
 MONGO_URL = os.environ.get('MONGOHQ_URL') or os.environ.get('MONGOLAB_URI')
 TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
@@ -72,6 +74,57 @@ if DEBUG_CONNECTION_FAST_EXPIRE:
     CONNECTION_EXPIRES_S = 35
 # NB: Mongo remembers this, and it only has effect the VERY FIRST TIME we touch the index and create it.
 PRESENCE_EXPIRES_S = 600
+
+def slack_thread():
+    print "in spawned slack thread"
+    sc = SlackClient(SLACK_TOKEN)
+
+    # Join all channels
+    chans = json.loads(sc.api_call("channels.list"))
+    chans = chans['channels']
+    for chan in chans:
+        sc.api_call("channels.join", name=chan['name'])
+
+    if sc.rtm_connect():
+        while True:
+            msgs = sc.rtm_read()
+            print "Got msgs == " + str(msgs)
+            for msg in msgs:
+                if msg.get('ok') is not None:
+                    print "Server acknowledged our message: " + str(msg)
+                elif msg.get('type') is not None:
+                    if msg['type'] == 'hello':
+                        print "Server said hello: " + str(msg)
+                    elif msg['type'] == 'channel_created':
+                        print "Channel created: " + str(msg)
+                        print sc.api_call("channels.join", name=msg['channel']['name'])
+                    elif msg['type'] == 'message':
+                        print "Got a message: " + str(msg)
+                        sc.rtm_send_message(msg['channel'], str(msg))
+                    else:
+                        print "Got RTM message with unknown type field: " + str(msg)
+                else:
+                    print "Unknown message format in RTM: " + str(msg)
+                    
+            gevent.sleep(1)
+    else:
+        print "Connection Failed, invalid token?"
+
+print "[not] spawning slack thread"
+#gevent.spawn(slack_thread)
+print "spawned slack thread"
+
+#while True:
+#    gevent.sleep(9999999)  # debugging
+
+# When we connect: (type==hello)
+#   {u'type': u'hello'}
+# When we receive an inbound message: (type==message)
+#   {u'text': u'test', u'ts': u'1451771632.000002', u'user': u'U0ETAJ80L', u'team': u'T0ESH0TS5', u'type': u'message', u'channel': u'C0ESJ8HA4'}
+# When ???: (type==channel_marked)
+#   {u'mention_count': 0, u'ts': u'1451772326.000007', u'unread_count': 0, u'num_mentions': 0, u'mention_count_display': 0, u'unread_count_display': 0, u'num_mentions_display': 0, u'type': u'channel_marked', u'channel': u'C0ESJ8HA4'}
+# When the server acknowledges our message to it: (ok==True)
+#   {u'reply_to': None, u'text': u"{u'text': u'I guess the bot sees its own messages.', u'ts': u'1451772112.000006', u'user': u'U0ETAJ80L', u'reply_to': 193, u'type': u'message', u'channel': u'C0ESJ8HA4'}", u'ok': True, u'ts': u'1451772326.000007'}
 
 if MONGO_URL:
     mongo_conn = pymongo.Connection(MONGO_URL)

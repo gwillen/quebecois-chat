@@ -424,17 +424,18 @@ QUEBECOIS = (function(window, $, undefined){
             });
         }
 
-        var wikidiv = $('#globalWrapper');
-        wikidiv.css({
-            'position': 'absolute',
-            'top': CHATPANE_HEIGHT,
-            'margin-top': '10px'
-        });
-        var body = $('body');
+        var chatdiv = $('#shoalie');
+        //wikidiv.css({
+        //    'position': 'absolute',
+        //    'top': CHATPANE_HEIGHT,
+        //    'margin-top': '10px'
+        //});
+        //var body = $('body');
         var chatpane = $('#chatpane');
         if (chatpane.length == 0) {
             chatpane = $('<div id="chatpane">');
-            $('body').prepend(chatpane);
+            $('#shoalie').html("");
+            $('#shoalie').append(chatpane);
         }
 
         chatpane.css({

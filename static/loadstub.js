@@ -1,5 +1,8 @@
 //Needs jquery: <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
 
+// XXX
+window.config = { document_domain: "rotq.net", chat_domain: "x.rotq.net" };
+
 parms = {};
 location.
     search.
@@ -26,3 +29,5 @@ $(document).ready(function (){
         QUEBECOIS.hijack_czar();
     });
 });
+
+//$.getScript('http://scripts.x.rotq.net/static/loadstub.js?v=1');
