@@ -402,35 +402,11 @@ QUEBECOIS = (function(window, $, undefined){
     var setup_complete = false;
 
     var hijack_czar = function() {
-        var username = $('#whoami option:selected').text();
-        var activity = $('#whatamidoing').val();
-
-        // Only do this bit once
-        if (!setup_complete) {
-            setup_complete = true;
-
-            $('#whoami').change(function(e) {
-                if ($('#whoami').val() == "__MISSINGNO__") {
-                    // This is a magic value that signifies adding a new user. Don't run with it.
-                    return;
-                }
-                console.log("username changed to ", $('#whoami option:selected').text())
-                hijack_czar();
-            });
-            $('#whatamidoing').change(function(e) {
-                console.log("activity changed to ", $('#whatamidoing').val());
-                //e.stop(); // so we don't get it twice
-                hijack_czar();
-            });
-        }
+        var username = config.username;
+        var channel = config.channel;
 
         var chatwrapper = $('#chat-wrapper');
-        //wikidiv.css({
-        //    'position': 'absolute',
-        //    'top': CHATPANE_HEIGHT,
-        //    'margin-top': '10px'
-        //});
-        //var body = $('body');
+
         var chatpane = $('#chatpane');
         if (chatpane.length == 0) {
             chatpane = $('<div id="chatpane">');
@@ -445,7 +421,7 @@ QUEBECOIS = (function(window, $, undefined){
             'width': '100%'
         });
 
-        var chatsrc = PROXY + 'static/chattest.html?v=' + version + '&user=' + username + '&channel=' + activity;
+        var chatsrc = PROXY + 'static/chattest.html?v=' + version + '&user=' + username + '&channel=' + channel;
         console.log("Setting up chat frame with src = ", chatsrc);
         var chatframe = $('#chatframe');
         if (!chatframe.length) {
