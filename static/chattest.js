@@ -424,7 +424,7 @@ QUEBECOIS = (function(window, $, undefined){
             });
         }
 
-        var chatdiv = $('#shoalie');
+        var chatwrapper = $('#chat-wrapper');
         //wikidiv.css({
         //    'position': 'absolute',
         //    'top': CHATPANE_HEIGHT,
@@ -434,8 +434,8 @@ QUEBECOIS = (function(window, $, undefined){
         var chatpane = $('#chatpane');
         if (chatpane.length == 0) {
             chatpane = $('<div id="chatpane">');
-            $('#shoalie').html("");
-            $('#shoalie').append(chatpane);
+            chatwrapper.html("");
+            chatwrapper.append(chatpane);
         }
 
         chatpane.css({
