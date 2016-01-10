@@ -463,7 +463,8 @@ QUEBECOIS = (function(window, $, undefined){
             'border-bottom': '1px solid black'
         });
     };
-
+    
+/*
     var fixed_chatpane = function(flag) {
         if (flag) {
             window.parent.$('#chatpane').css({'position': 'fixed'});
@@ -483,7 +484,7 @@ QUEBECOIS = (function(window, $, undefined){
             window.parent.$('#globalWrapper').css({'top': CHATPANE_HEIGHT});
         }
     };
-
+*/
 
     //
     // Export selected functions
