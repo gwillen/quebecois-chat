@@ -61,10 +61,6 @@
                     </td>
                     <td style="white-space: nowrap;">
                         <input type='submit' name='submit' value='Send'>
-                        <!--<input type='checkbox' name='fixed' id='fixed_checkbox'>
-                        <label for='fixed_checkbox'>Fixed chatpane</label>
-                        <input type='checkbox' name='hide' id='hide_checkbox'>
-                        <label for='hide_checkbox'>Hide chat</label>-->
                     </td>
                 </tr></table>
             </div>
@@ -192,18 +188,6 @@
             });
         };
         refresh_channel_list();
-
-        // XXX: slightly ugh.
-        //$('#messages').css({'height': '' + ($('body').height() - $('table#chatextras').height()) + 'px'});
-        //$('#userlist').css({'height': '' + ($('body').height() - $('table#chatextras').height()) + 'px'});
-
-        $('#fixed_checkbox').click(function() {
-            QUEBECOIS.fixed_chatpane($('#fixed_checkbox')[0].checked);
-        });
-
-        $('#hide_checkbox').click(function() {
-            QUEBECOIS.hide_chatpane($('#hide_checkbox')[0].checked);
-        });
 
         QUEBECOIS.xhr_state_length = -1;
         var update_lag_meter = function() {

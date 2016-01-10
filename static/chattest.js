@@ -463,28 +463,6 @@ QUEBECOIS = (function(window, $, undefined){
             'border-bottom': '1px solid black'
         });
     };
-    
-/*
-    var fixed_chatpane = function(flag) {
-        if (flag) {
-            window.parent.$('#chatpane').css({'position': 'fixed'});
-        } else {
-            window.parent.$('#chatpane').css({'position': 'absolute'});
-        }
-    };
-
-    var hide_chatpane = function(flag) {
-        if (flag) {
-            $('#chatmain').css({'display': 'none'});
-            window.parent.$('#chatpane').css({'height': CHAT_EXTRAS_HEIGHT});
-            window.parent.$('#globalWrapper').css({'top': CHAT_EXTRAS_HEIGHT});
-        } else {
-            $('#chatmain').css({'display': 'block'});
-            window.parent.$('#chatpane').css({'height': CHATPANE_HEIGHT});
-            window.parent.$('#globalWrapper').css({'top': CHATPANE_HEIGHT});
-        }
-    };
-*/
 
     //
     // Export selected functions
@@ -496,7 +474,5 @@ QUEBECOIS = (function(window, $, undefined){
         send: send,
         get_channels: get_channels,
         hijack_czar: hijack_czar,
-        fixed_chatpane: fixed_chatpane,
-        hide_chatpane: hide_chatpane,
     }
 })(this, jQuery);
