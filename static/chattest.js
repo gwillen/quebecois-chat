@@ -22,7 +22,7 @@ PROXY = 'http://scripts.' + config.chat_domain + '/';
 LONGPOLL_DOMAIN = config.chat_domain;
 LONGPOLL_WORKAROUND_DISABLED = config.chat_longpoll_workaround_disabled;
 
-CHATPANE_HEIGHT = '240px';
+CHATPANE_HEIGHT = '100%';  // constant for historical reasons
 CHAT_EXTRAS_HEIGHT = '21px';
 //CHATPANE_HEIGHT = '20px';
 ERROR_BACKOFF = 30 * 1000; // ms
@@ -440,7 +440,7 @@ QUEBECOIS = (function(window, $, undefined){
 
         chatpane.css({
             'background-color': 'white',
-            'height': CHATPANE_HEIGHT,
+            'height': '100%',
             'z-index': 1000,
             'width': '100%'
         });
@@ -458,7 +458,7 @@ QUEBECOIS = (function(window, $, undefined){
 
         chatframe.css({
             'width': '100%',
-            'height': '100%',
+            'height': CHATPANE_HEIGHT,
             'border': '0px',
             'border-bottom': '1px solid black'
         });
