@@ -1,8 +1,5 @@
 //Needs jquery: <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
 
-// XXX
-window.config = { document_domain: "rotq.net", chat_domain: "x.rotq.net" };
-
 parms = {};
 location.
     search.
