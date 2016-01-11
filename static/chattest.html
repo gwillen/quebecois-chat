@@ -115,34 +115,9 @@
 
         var all_channels = [];
 
-        // XXX: This digs kind of grotesquely into Czar internals. Also it's a copy-paste from czar.js and should be refactored.
         var filter_channels = function(channels) {
-            var doc = window.top.document;
-            var hidden_puzzles = [];
-            var selected = window.top.GetSelectedTags();
-
-            for (var node=doc.getElementById("items").firstChild;
-                 node != null; node=node.nextSibling) {
-                if (node.className == "deleted") {
-                    hidden_puzzles.push(node.children[1].value);
-                    continue;
-                }
-
-                if (window.top.TagsMatch(selected,
-                                         doc.getElementById(node.name + ".tags").value) ^
-                    !selected.invert) {
-                        hidden_puzzles.push(node.children[1].value);
-                }
-            }
-
-            var shown_channels = [];
-            for (var i = 0; i < channels.length; ++i) {
-                if (hidden_puzzles.indexOf(channels[i]) == -1) {
-                    shown_channels.push(channels[i]);
-                }
-            }
-
-            return shown_channels;
+            // We should use herring info to filter out channels for puzzles we're filtering out.
+            return channels;
         };
 
         var redisplay_channel_list = function() {
