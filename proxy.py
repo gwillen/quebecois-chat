@@ -62,7 +62,7 @@ logging.basicConfig(filename='quebecois.proxy.log', level=logging.DEBUG)
 
 MAGIC_KEY = 'fhqwhgads'
 SLACK_TOKEN = "xoxp-14901027889-17649065479-17648648177-ccd9ce4b5a"  # User 'ragebot' at ireproof.slack.com -- NOT a bot account
-MONGO_URL = os.environ.get('MONGOHQ_URL') or os.environ.get('MONGOLAB_URI')
+MONGO_URL = os.environ.get('MONGODB')  # set to mongolab/mongohq/as appropriate per app
 TX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_TX_URL')
 RX_QUEUE_URL = os.environ.get('RABBITMQ_BIGWIG_RX_URL')
 QUEUE_EXCHANGE = 'qchat'
