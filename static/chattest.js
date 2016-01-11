@@ -382,12 +382,15 @@ QUEBECOIS = (function(window, $, undefined){
             success: function(data, textstatus, jqxhr) {
                 try {
                     var result = json_parse(data);
+                    console.log("get_channels parsed result: ", result);
                     f(result.channels);
                 } catch(e) {
+                    console.log("get_channels got exception: ", e);
                     f(undefined);
                 }
             },
             error: function(jqxhr, textstatus, errorthrown) {
+                console.log("get_channels received xhr error", jqxhr, textstatus, errorthrown);
                 f(undefined);
             }
         });
