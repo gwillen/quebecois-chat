@@ -127,11 +127,11 @@ print "spawned slack thread"
 #   {u'reply_to': None, u'text': u"{u'text': u'I guess the bot sees its own messages.', u'ts': u'1451772112.000006', u'user': u'U0ETAJ80L', u'reply_to': 193, u'type': u'message', u'channel': u'C0ESJ8HA4'}", u'ok': True, u'ts': u'1451772326.000007'}
 
 if MONGO_URL:
-    mongo_conn = pymongo.Connection(MONGO_URL)
+    mongo_conn = pymongo.MongoClient(MONGO_URL)
     db = mongo_conn[urlparse(MONGO_URL).path[1:]]
 else:
     # Not on an app with the MongoHQ add-on, do some localhost action
-    mongo_conn = pymongo.Connection('localhost', 27017)
+    mongo_conn = pymongo.MongoClient('localhost', 27017)
     db = mongo_conn['someapps-db']
 
 # Default of 0.25 seconds is too quick for my taste; give it 5 seconds.
